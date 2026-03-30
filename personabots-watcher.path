@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch persona bot code for changes
+
+[Path]
+PathModified=/home/YOUR_USER/YOUR_BOT_DIR/bot_base.py
+PathModified=/home/YOUR_USER/YOUR_BOT_DIR/memory.py
+PathModified=/home/YOUR_USER/YOUR_BOT_DIR/conversation_compressor.py
+Unit=personabots-restart.service
+
+[Install]
+WantedBy=default.target

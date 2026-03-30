@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skill Library</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #1c1c1e;
+    --card: #2c2c2e;
+    --border: #3a3a3c;
+    --text: #f2f2f7;
+    --sub: #8e8e93;
+    --accent: #ff9f0a;
+    --green: #30d158;
+    --red: #ff453a;
+    --blue: #0a84ff;
+    --purple: #bf5af2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 12px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header span { font-size: 13px; color: var(--sub); margin-left: auto; }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .filter-btn {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--sub);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    font-weight: 600;
+  }
+
+  .search {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+    outline: none;
+  }
+  .search:focus { border-color: var(--accent); }
+
+  .skills { display: flex; flex-direction: column; gap: 8px; }
+
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+  }
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+    flex: 1;
+  }
+  .card-name a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .card-name a:hover { text-decoration: underline; }
+  .card-desc {
+    font-size: 12px;
+    color: var(--sub);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .card-footer {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .badge-cat  { background: #1c3557; color: var(--blue); }
+  .badge-discovered { background: #2c2c1a; color: var(--accent); }
+  .badge-evaluated  { background: #1a2c1a; color: var(--green); }
+  .badge-installed  { background: #1a2c1a; color: var(--green); }
+  .badge-extracted  { background: #2c1a2c; color: var(--purple); }
+  .badge-skipped    { background: #2c1c1c; color: var(--red); }
+  .badge-source     { background: #1c1c2c; color: var(--sub); }
+
+  .open-btn {
+    margin-left: auto;
+    padding: 3px 10px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #000;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--sub);
+    padding: 40px 20px;
+    font-size: 14px;
+  }
+  .stats {
+    font-size: 12px;
+    color: var(--sub);
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>📚</div>
+  <h1>Skill Library</h1>
+  <span id="count">—</span>
+</header>
+
+<input class="search" type="text" placeholder="Search skills..." id="searchInput" oninput="render()">
+
+<div class="filters" id="filters"></div>
+<div class="stats" id="stats"></div>
+<div class="skills" id="skills"></div>
+
+<script>
+const DATA_URL = "https://raw.githubusercontent.com/nardovibecoding/telegram-claude-bot/main/skill_library.json";
+
+let allSkills = [];
+let activeFilter = "all";
+
+const STATUS_ORDER = ["installed","extracted","evaluated","discovered","skipped"];
+
+function catColor(cat) {
+  const map = {
+    memory:"#0a84ff", crawl:"#30d158", evolution:"#bf5af2",
+    security:"#ff453a", office:"#ff9f0a", "dev-tools":"#64d2ff",
+    content:"#ff9f0a", automation:"#5e5ce6", voice:"#30d158", agent:"#ff6b6b",
+  };
+  return map[cat] || "#8e8e93";
+}
+
+function extractName(skill) {
+  // "GitHub: user/repo" → "user/repo"
+  return skill.name.replace(/^(GitHub|Anthropic|SkillsMP|InStreet|Coze|虾评):\s*/i, "");
+}
+
+function render() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  let filtered = allSkills.filter(s => {
+    const matchCat = activeFilter === "all" || s.category === activeFilter || (activeFilter === "uncategorized" && !s.category);
+    const matchQ = !q || s.name.toLowerCase().includes(q) || (s.description||"").toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+
+  document.getElementById("count").textContent = `${filtered.length} skills`;
+  document.getElementById("stats").textContent =
+    `${allSkills.filter(s=>s.status==="installed").length} installed · ` +
+    `${allSkills.filter(s=>s.status==="discovered").length} discovered · ` +
+    `${allSkills.filter(s=>s.status==="skipped").length} skipped`;
+
+  const container = document.getElementById("skills");
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty">No skills found</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(s => {
+    const name = extractName(s);
+    const url = s.source_url || "";
+    const nameHtml = url
+      ? `<a href="${url}" target="_blank">${name}</a>`
+      : name;
+    const cat = s.category || "uncategorized";
+    const desc = (s.description || "").replace(/\s*\|\s*Stars:\s*\d+/, "").slice(0, 120);
+    const openBtn = url ? `<a class="open-btn" href="${url}" target="_blank">Open →</a>` : "";
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div class="card-name">${nameHtml}</div>
+          ${openBtn}
+        </div>
+        ${desc ? `<div class="card-desc">${desc}</div>` : ""}
+        <div class="card-footer">
+          <span class="badge badge-cat" style="color:${catColor(cat)}">${cat}</span>
+          <span class="badge badge-${s.status||'discovered'}">${s.status||'discovered'}</span>
+          <span class="badge badge-source">${s.source||'github'}</span>
+          ${s.notes ? `<span class="badge" style="color:#8e8e93">${s.notes.slice(0,40)}</span>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function buildFilters() {
+  const cats = ["all", ...new Set(allSkills.map(s => s.category || "uncategorized"))].sort();
+  const container = document.getElementById("filters");
+  container.innerHTML = cats.map(c => {
+    const count = c === "all" ? allSkills.length : allSkills.filter(s => (s.category||"uncategorized") === c).length;
+    return `<button class="filter-btn ${c===activeFilter?'active':''}" onclick="setFilter('${c}')">${c} <span style="opacity:.6">${count}</span></button>`;
+  }).join("");
+}
+
+function setFilter(cat) {
+  activeFilter = cat;
+  buildFilters();
+  render();
+}
+
+async function load() {
+  try {
+    const r = await fetch(DATA_URL + "?t=" + Date.now());
+    allSkills = await r.json();
+    allSkills.sort((a,b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
+    buildFilters();
+    render();
+  } catch(e) {
+    document.getElementById("skills").innerHTML =
+      `<div class="empty">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// Telegram Mini App theme sync
+if (window.Telegram?.WebApp) {
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+}
+
+load();
+</script>
+</body>
+</html>

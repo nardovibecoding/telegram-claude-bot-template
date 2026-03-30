@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart persona bots after code change (debounced)
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/bash -c "pkill -f 'run_bot.py' 2>/dev/null; echo 'persona bots killed — start_all.sh will auto-restart'"

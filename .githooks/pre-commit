@@ -1,0 +1,80 @@
+#!/bin/bash
+# Pre-commit hook: auto-pull + syntax + security
+# Prevents conflicts when multiple Claude Code windows edit simultaneously
+
+# ── Check for remote changes (warn if behind) ──
+git fetch origin main --quiet 2>/dev/null
+LOCAL=$(git rev-parse HEAD 2>/dev/null)
+REMOTE=$(git rev-parse origin/main 2>/dev/null)
+BASE=$(git merge-base HEAD origin/main 2>/dev/null)
+if [ "$LOCAL" != "$REMOTE" ] && [ "$LOCAL" = "$BASE" ]; then
+    BEHIND=$(git rev-list --count HEAD..origin/main)
+    echo "⚠️ ${BEHIND} new commit(s) on remote. Run 'git pull --rebase' after this commit."
+fi
+
+ERRORS=0
+
+for file in $(git diff --cached --name-only --diff-filter=ACM | grep '\.py$'); do
+    if [ -f "$file" ]; then
+        python3 -c "import py_compile; py_compile.compile('$file', doraise=True)" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "❌ Syntax error in: $file"
+            python3 -c "import py_compile; py_compile.compile('$file', doraise=True)" 2>&1
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+done
+
+if [ $ERRORS -ne 0 ]; then
+    echo ""
+    echo "🛑 Commit blocked — $ERRORS file(s) have syntax errors. Fix them first."
+    exit 1
+fi
+
+# Ruff: auto-fix line length + formatting, then check remaining issues
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$')
+if command -v ruff &> /dev/null && [ -n "$FILES" ]; then
+    # Auto-fix E501 (line too long) and safe fixes silently
+    for file in $FILES; do
+        if [ -f "$file" ]; then
+            ruff check "$file" --select E501 --fix --quiet 2>/dev/null
+            git add "$file" 2>/dev/null  # re-stage after auto-fix
+        fi
+    done
+    # Report remaining issues (not auto-fixable)
+    for file in $FILES; do
+        if [ -f "$file" ]; then
+            OUTPUT=$(ruff check "$file" --select E,F,W --no-fix 2>&1 | grep -v "^$")
+            if [ -n "$OUTPUT" ]; then
+                echo "⚠️  $file:"
+                echo "$OUTPUT" | head -5
+            fi
+        fi
+    done
+fi
+
+# Bandit: security issues
+if command -v bandit &> /dev/null && [ -n "$FILES" ]; then
+    SEC=$(bandit -ll $FILES 2>/dev/null | grep -E "Severity:" | head -3)
+    if [ -n "$SEC" ]; then
+        echo "🔒 Security: $SEC"
+    fi
+fi
+
+# Gitleaks: scan for hardcoded secrets (BLOCKS commit)
+if command -v gitleaks &> /dev/null; then
+    LEAKS_OUTPUT=$(gitleaks protect --staged --no-banner --no-color 2>&1)
+    LEAKS_EXIT=$?
+    if [ $LEAKS_EXIT -ne 0 ]; then
+        echo ""
+        echo "🛑 SECRET DETECTED — commit blocked by gitleaks!"
+        echo "$LEAKS_OUTPUT" | head -20
+        echo ""
+        echo "Remove the secret and try again. If false positive, add to .gitleaksignore"
+        exit 1
+    fi
+else
+    echo "⚠️  gitleaks not installed — skipping secret scan"
+fi
+
+echo "✅ Checks passed"

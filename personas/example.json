@@ -1,0 +1,28 @@
+{
+  "_comment": "Copy this file to personas/<your_id>.json and fill in the fields. The 'id' must match the filename.",
+  "id": "example",
+  "display_name": "Your Bot Name",
+  "topic_names": [
+    "📌 Main Topic",
+    "💬 Chat"
+  ],
+  "voice_enabled": false,
+  "whisper_language": "en",
+  "news_module": "none",
+  "twitter_enabled": false,
+  "twitter_accounts": [],
+  "xcurate_target": {
+    "_comment": "Telegram group chat_id and thread_id where X curation posts are sent",
+    "chat_id": "YOUR_GROUP_CHAT_ID",
+    "thread_id": "YOUR_THREAD_ID"
+  },
+  "xcurate_lang": "en",
+  "china_trends_target": {
+    "_comment": "Telegram thread for China trends digest — remove if not used",
+    "chat_id": "YOUR_GROUP_CHAT_ID",
+    "thread_id": "YOUR_THREAD_ID"
+  },
+  "digest_enabled": false,
+  "yields_enabled": false,
+  "system_prompt": "You are a helpful assistant. Replace this with your persona's character, background, speaking style, and instructions.\n\nExample: You are a seasoned tech analyst who follows AI trends. You speak concisely, cite sources, and always give a clear verdict."
+}

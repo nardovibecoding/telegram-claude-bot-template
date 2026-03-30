@@ -1,0 +1,3 @@
+# False positives in git history
+b779e8fd1f5d1a98c2e635bf99fc4b4723992bcb:.cache:generic-api-key:1
+0fae9e9d5879dcbee41ede2f703fb9c684483dee:.xcurate_prefetch.json:generic-api-key:1

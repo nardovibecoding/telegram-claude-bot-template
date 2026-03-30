@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart admin bot after code change (debounced)
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/bash -c "pkill -f 'red_team_auto.py' 2>/dev/null; pkill -f 'red_team_offline.py' 2>/dev/null; pkill -f 'python admin_bot.py' 2>/dev/null; echo 'admin bot + orphaned processes killed'"
