@@ -151,6 +151,55 @@ pip install -r requirements.txt && cp .env.example .env
 | `memory.py` | Per-persona vector memory (SQLite) |
 | `start_all.sh` | Process manager with auto-restart |
 | `personas/` | One JSON per bot persona |
+| `admin_bot/handoff.py` | Agent-to-agent context sharing |
+
+---
+
+## Team Agents
+
+The template includes a multi-agent team system where specialized AI agents collaborate on a project through Telegram group topics.
+
+### How it works
+
+Create a Telegram group with topics (threads). Each topic maps to an agent role:
+
+| Thread | Agent | Role |
+|---|---|---|
+| Market Research | Scout | Find opportunities, competitor analysis, trend scanning |
+| Growth | Growth | Distribution strategy, user acquisition, viral loops |
+| Challenge | Critic | Stress-test ideas, find flaws, kill bad ideas early |
+| Build | Builder | Write production code, implement features |
+
+Register the group: `/domain team_a`
+
+### Agent workflow
+
+```
+Scout researches → /approve unlocks other agents → Builder/Growth/Critic work
+                                                  ↓
+                                          /resetphase starts fresh
+```
+
+### Handoffs
+
+Agents automatically share context. When Scout finds an opportunity, Builder sees that context when you send it a task. No manual copy-paste needed.
+
+- Agent outputs saved to `.handoffs/` (file-based, 7-day TTL)
+- Each agent sees other agents' output, not its own
+- `/resetphase` clears all handoff context for a fresh start
+
+### Guardrails
+
+- Builder output gets auto-reviewed by Opus before committing
+- Up to 3 fix rounds (Sonnet fixes issues Opus finds)
+- Commit requires explicit approval via inline button
+
+### Adding more teams
+
+1. Add system prompts to `admin_bot/config.py` (e.g. `"team_b:scout"`)
+2. Add thread mappings to `admin_bot/domains.py`
+3. Add domain entries to `admin_bot/handoff.py` `TEAM_DOMAINS` dict
+4. Register the new group: `/domain team_b`
 
 ---
 

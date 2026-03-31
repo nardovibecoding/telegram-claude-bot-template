@@ -580,6 +580,12 @@ async def _run_sdk_task(
 
         result = _clean_result(result) if result else ""
 
+        # Save handoff context for team agents
+        from .handoff import TEAM_DOMAINS as _TD2, save_handoff
+        if domain in _TD2 and result:
+            _team, _role = _TD2[domain]
+            save_handoff(_team, _role, result)
+
         # Background mode: always send as NEW message for push notification
         if bg_flag[0]:
             if _live_msg[0]:
@@ -616,7 +622,7 @@ async def _run_sdk_task(
             )
 
         # Check for uncommitted code changes
-        _code_domains = {"news", "team_a:builder", "bella:builder"}
+        _code_domains = {"news", "team_a:builder"}
         if not _failed and domain in _code_domains:
             try:
                 proc_diff = await asyncio.create_subprocess_exec(
@@ -629,7 +635,7 @@ async def _run_sdk_task(
                 changed_files = [l[3:] for l in stdout.decode().strip().splitlines() if l.strip()]
                 py_changed = [f for f in changed_files if f.endswith('.py')]
                 if py_changed:
-                    if domain in ("team_a:builder", "bella:builder"):
+                    if domain == "team_a:builder":
                         await _auto_review_loop(msg, context, chat_id, reply_thread, py_changed)
                     else:
                         files_str = ", ".join(py_changed[:5])
@@ -825,6 +831,18 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if cognitive_ctx:
         prompt = f"[Cognitive context:]\n{cognitive_ctx}\n\n{prompt}"
 
+    # Inject team handoff context from other agents
+    from .handoff import TEAM_DOMAINS, load_handoffs
+    if domain in TEAM_DOMAINS:
+        _team, _role = TEAM_DOMAINS[domain]
+        _handoffs = load_handoffs(_team, exclude_role=_role)
+        if _handoffs:
+            _parts = []
+            for _h in _handoffs:
+                _age_h = int((_time.time() - _h.get("timestamp", 0)) / 3600)
+                _parts.append(f"[{_h['role'].upper()} ({_age_h}h ago):]\n{_h['summary']}")
+            prompt = f"[Team context from other agents:]\n{'---\n'.join(_parts)}\n\n{prompt}"
+
     log.info("claude_bridge: chat_id=%s thread=%s prompt=%r", chat_id, thread_id, prompt[:80])
 
     if domain is None:
@@ -965,10 +983,8 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
         cwd = PROJECT_DIR
-        if domain == "bella":
-            bella_dir = os.path.expanduser("~/face-analysis-app")
-            if os.path.isdir(bella_dir):
-                cwd = bella_dir
+        # To use a different working directory for a team's builder agent,
+        # add a check here: if domain == "my_team": cwd = "/path/to/project"
 
         _retry_key = f"retry:{chat_id}:{thread_id or 0}"
         context.bot_data[_retry_key] = prompt

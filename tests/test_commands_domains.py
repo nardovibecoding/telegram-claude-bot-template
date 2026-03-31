@@ -4,7 +4,7 @@ import os
 import unittest
 
 
-VALID_DOMAINS = ("team_a", "bella", "news", "email", "airbnb")
+VALID_DOMAINS = ("team_a", "news", "email", "airbnb")
 
 
 class TestDomainValidation(unittest.TestCase):

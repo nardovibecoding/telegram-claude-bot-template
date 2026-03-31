@@ -70,11 +70,9 @@ def _detect_domain(chat_id, thread_id):
     if chat_str in groups:
         base_domain = groups[chat_str]
         if base_domain == "team_a" and thread_id:
+            # Customize these thread IDs to match your Telegram group topics
             team_a_topics = {3: "team_a:scout", 27: "team_a:growth", 28: "team_a:critic", 29: "team_a:builder"}
             return team_a_topics.get(thread_id, "team_a")
-        if base_domain == "bella" and thread_id:
-            bella_topics = {3: "bella:scout", 6: "bella:builder", 7: "bella:growth", 8: "bella:critic"}
-            return bella_topics.get(thread_id, "bella")
         return base_domain
     return None
 

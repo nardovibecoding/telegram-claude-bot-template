@@ -705,13 +705,23 @@ async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_reset_phase(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lock Builder/Growth/Critic again (back to Scout phase): /resetphase"""
+    """Lock Builder/Growth/Critic again (back to Scout phase): /resetphase [team]"""
     phase_file = os.path.join(PROJECT_DIR, ".team_a_phase")
     try:
         os.unlink(phase_file)
     except OSError:
         pass
-    await update.message.reply_text("🔒 Phase reset — Builder/Growth/Critic locked. Scout first.")
+
+    # Clear handoff context for the team
+    from .handoff import clear_handoffs
+    args = context.args
+    team = args[0] if args else "team_a"
+    cleared = clear_handoffs(team)
+
+    await update.message.reply_text(
+        f"🔒 Phase reset — Builder/Growth/Critic locked. Scout first.\n"
+        f"Cleared {cleared} handoff(s) for team {team}."
+    )
 
 
 @admin_only
@@ -730,7 +740,7 @@ async def cmd_q(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Register current group as a domain: /domain team_a or /domain bella"""
+    """Register current group as a domain: /domain team_a"""
     if not context.args:
         groups = _load_domain_groups()
         lines = ["Registered domains:"]
@@ -739,8 +749,8 @@ async def cmd_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines) if len(lines) > 1 else "No domains registered.")
         return
     domain = context.args[0].lower()
-    if domain not in ("team_a", "bella", "news", "email", "airbnb"):
-        await update.message.reply_text("Valid domains: team_a, bella, news, email, airbnb")
+    if domain not in ("team_a", "news", "email", "airbnb"):
+        await update.message.reply_text("Valid domains: team_a, news, email, airbnb")
         return
     chat_id = update.effective_chat.id
     groups = _load_domain_groups()
