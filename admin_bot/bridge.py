@@ -831,14 +831,14 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("claude_bridge: no domain for chat_id=%s, ignoring", chat_id)
         return
 
-    # Andrea workflow gate
-    _ANDREA_PHASE_FILE = os.path.join(PROJECT_DIR, ".team_a_phase")
+    # team_a workflow gate
+    _TEAM_A_PHASE_FILE = os.path.join(PROJECT_DIR, ".team_a_phase")
     _GATED_DOMAINS = {"team_a:builder", "team_a:growth", "team_a:critic"}
     if domain in _GATED_DOMAINS:
         phase = ""
         try:
-            if os.path.exists(_ANDREA_PHASE_FILE):
-                with open(_ANDREA_PHASE_FILE) as f:
+            if os.path.exists(_TEAM_A_PHASE_FILE):
+                with open(_TEAM_A_PHASE_FILE) as f:
                     phase = f.read().strip()
         except Exception:
             pass

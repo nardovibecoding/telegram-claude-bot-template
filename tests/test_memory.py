@@ -112,8 +112,8 @@ class TestExtractProperNouns(unittest.TestCase):
         self.assertIn("上海市", result)
 
     def test_at_handles(self):
-        result = _extract_proper_nouns("Follow @nardovibecoding on X")
-        self.assertIn("@nardovibecoding", result)
+        result = _extract_proper_nouns("Follow @example_user on X")
+        self.assertIn("@example_user", result)
 
     def test_empty_string(self):
         result = _extract_proper_nouns("")

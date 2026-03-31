@@ -3,8 +3,8 @@
 """Auto-Healer — universal self-diagnostic for the ENTIRE system.
 Detects failures across ALL components, diagnoses root cause, auto-fixes.
 
-Covers: digests (news/X/Reddit/crypto), Andrea Scout, evolution digest,
-China trends, MCP servers, bot crashes, stuck processes, cookie staleness,
+Covers: digests (news/X/Reddit/crypto), Team A Scout, evolution digest,
+MCP servers, bot crashes, stuck processes, cookie staleness,
 send failures, empty sections — EVERYTHING.
 
 Runs every 3 hours via cron. Reads all logs, checks all processes, fixes what it can."""
@@ -205,14 +205,14 @@ async def detect_all_issues() -> list[dict]:
                        "component": "x_digest",
                        "details": f"X digest errors: {x_failures[-1][:100]}"})
 
-    # ── 10. Andrea Scout failures ──
+    # ── 10. Team A Scout failures ──
     scout_fail = "Scout" in bot_log and "failed" in bot_log.lower()
     scout_log = read_log("/tmp/start_all.log", 500)
     team_a_errors = re.findall(r'team_a.*(?:error|failed|exception)', scout_log, re.IGNORECASE)
     if team_a_errors:
         issues.append({"type": "team_a_failed", "severity": "MEDIUM",
                        "component": "team_a_scout",
-                       "details": f"Andrea Scout errors: {len(team_a_errors)}"})
+                       "details": f"Team A Scout errors: {len(team_a_errors)}"})
 
     # ── 11. Cookie staleness ──
     cookie_path = BASE_DIR / "twitter_cookies.json"

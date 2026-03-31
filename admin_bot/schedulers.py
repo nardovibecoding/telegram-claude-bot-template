@@ -336,7 +336,7 @@ async def _daily_review(context: ContextTypes.DEFAULT_TYPE):
         log.error("Daily review failed: %s", e)
 
 
-# ── Andrea Scout ────────────────────────────────────────────────────────
+# ── Team A Scout ────────────────────────────────────────────────────────
 
 async def _run_team_a_scout(bot, notify_chat_id: int | None = None) -> None:
     """Run team_a_scout.py as subprocess and optionally notify on error."""
@@ -351,26 +351,26 @@ async def _run_team_a_scout(bot, notify_chat_id: int | None = None) -> None:
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
         output = stdout.decode().strip()
-        log.info("Andrea scout finished (rc=%d)", proc.returncode)
+        log.info("Team A scout finished (rc=%d)", proc.returncode)
         if proc.returncode != 0 and notify_chat_id:
             await bot.send_message(
                 chat_id=notify_chat_id,
-                text=f"⚠️ Andrea Scout failed (rc={proc.returncode}):\n<pre>{output[-800:]}</pre>",
+                text=f"⚠️ Team A Scout failed (rc={proc.returncode}):\n<pre>{output[-800:]}</pre>",
                 parse_mode="HTML",
             )
         elif notify_chat_id:
             await bot.send_message(
                 chat_id=notify_chat_id,
-                text="✅ Andrea Scout ran successfully.",
+                text="✅ Team A Scout ran successfully.",
             )
     except asyncio.TimeoutError:
-        log.warning("Andrea Scout timed out (300s)")
+        log.warning("Team A Scout timed out (300s)")
         if notify_chat_id:
-            await bot.send_message(chat_id=notify_chat_id, text="⚠️ Andrea Scout timed out.")
+            await bot.send_message(chat_id=notify_chat_id, text="⚠️ Team A Scout timed out.")
     except Exception as e:
-        log.error("Andrea Scout error: %s", e)
+        log.error("Team A Scout error: %s", e)
         if notify_chat_id:
-            await bot.send_message(chat_id=notify_chat_id, text=f"⚠️ Andrea Scout error: {e}")
+            await bot.send_message(chat_id=notify_chat_id, text=f"⚠️ Team A Scout error: {e}")
 
 
 async def _team_a_scout_job(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -382,7 +382,7 @@ async def _team_a_sync_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Every 3 days: ping Owner in DM with a structured sync prompt."""
     hkt = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
     msg = (
-        f"<b>🔄 Andrea Scout — 3-Day Sync</b>  {hkt}\n\n"
+        f"<b>🔄 Team A Scout — 3-Day Sync</b>  {hkt}\n\n"
         "Time to review the last 3 days of app digests.\n\n"
         "<b>Quick questions:</b>\n"
         "1. Any idea that stood out? (worth prototyping?)\n"

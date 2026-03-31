@@ -19,7 +19,7 @@ from pathlib import Path
 
 PRIVATE_ROOT = Path(__file__).parent.parent  # telegram-claude-bot/
 PUBLIC_ROOT = Path.home()  # public repos cloned alongside
-_GH_USER = "nardovibecoding"
+_GH_USER = os.environ.get("GITHUB_USER", "YOUR_GITHUB_USER")
 _COPYRIGHT = "# Copyright (c) 2026 Nardo (nardovibecoding). AGPL-3.0 — see LICENSE"
 
 # ── Repo configs ────────────────────────────────────────────────────────

@@ -789,9 +789,9 @@ async def cmd_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_scout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Manually trigger the Andrea Scout: /scout"""
+    """Manually trigger the Team A Scout: /scout"""
     from .schedulers import _run_team_a_scout
-    await update.message.reply_text("Running Andrea Scout now...")
+    await update.message.reply_text("Running Team A Scout now...")
     await _run_team_a_scout(context.bot, notify_chat_id=update.effective_chat.id)
 
 
