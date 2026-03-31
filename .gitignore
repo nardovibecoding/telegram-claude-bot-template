@@ -5,6 +5,11 @@ twitter_cookies.json
 *.db-shm
 *.db-wal
 .playwright_profile/
+.playwright_luma_browser_v2/
+xlist_config.json
+ab_test_results.json
+.ai_digest_items.json
+digest_content_cache.json
 __pycache__/
 **/__pycache__/
 .DS_Store
