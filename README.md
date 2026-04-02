@@ -58,36 +58,39 @@ memory.py             ← vector DB per persona
 
 ## Quick start
 
-**1. Clone and set up**
+### Option A: Interactive setup (recommended)
+
+```bash
+git clone https://github.com/nardovibecoding/telegram-claude-bot-template
+cd telegram-claude-bot-template
+./setup.sh
+```
+
+The setup script walks you through everything: Python check, dependency install, Telegram token setup, and creating your first persona bot.
+
+### Option B: Manual setup
+
 ```bash
 git clone https://github.com/nardovibecoding/telegram-claude-bot-template
 cd telegram-claude-bot-template
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-**2. Configure**
-```bash
-cp .env.example .env
-# Fill in .env — at minimum: TELEGRAM_BOT_TOKEN_ADMIN, ADMIN_USER_ID, KIMI_API_KEY (or any LLM key)
-```
-
-**3. Add a persona**
-```bash
-cp personas/example.json personas/mybot.json
-# Edit mybot.json: set id, display_name, system_prompt, routing targets
-```
-
-**4. Start**
-```bash
+cp .env.example .env       # fill in your tokens and keys
+cp personas/example.json personas/mybot.json  # customize your bot
 ./start_all.sh
-# Logs: tail -f /tmp/start_all.log
 ```
 
-**5. Stop**
+### Option C: Docker
+
 ```bash
-./start_all.sh stop
+git clone https://github.com/nardovibecoding/telegram-claude-bot-template
+cd telegram-claude-bot-template
+cp .env.example .env       # fill in your tokens and keys
+cp personas/example.json personas/mybot.json
+docker compose up -d
 ```
+
+Logs: `tail -f /tmp/start_all.log` | Stop: `./start_all.sh stop` (or `docker compose down`)
 
 ---
 
@@ -105,10 +108,30 @@ Each persona is a JSON file in `personas/`. Copy `personas/example.json` and cus
 | `voice_enabled` | Enable STT/TTS |
 | `twitter_accounts` | X accounts to monitor for this persona |
 
-Register the persona in `start_all.sh`:
-```bash
-run_with_restart "MyBot" python run_bot.py mybot &
-```
+Persona bots are auto-discovered on startup -- just drop the JSON file and run `./start_all.sh`. No need to edit any scripts.
+
+---
+
+## Getting your Telegram IDs
+
+### Bot token
+1. Open Telegram, search for **@BotFather**
+2. Send `/newbot`, follow the prompts
+3. Copy the token (looks like `123456:ABC-DEF...`)
+4. Create a separate bot for each persona
+
+### Your user ID (ADMIN_USER_ID)
+1. Search for **@userinfobot** on Telegram
+2. Send it any message -- it replies with your numeric user ID
+
+### Group chat ID (GROUP_ID)
+1. Create a Telegram group and add your admin bot
+2. Send any message in the group
+3. Run:
+   ```bash
+   curl -s "https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates" | python3 -m json.tool | grep '"id"' | head -5
+   ```
+4. The negative number (like `-100...`) is your group ID
 
 ---
 

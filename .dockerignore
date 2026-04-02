@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+venv/
+__pycache__/
+*.pyc
+.git/
+.claude/
+*.db
+*.log
+data/
+.bot_pids
+.admin_heartbeat
+.admin_busy

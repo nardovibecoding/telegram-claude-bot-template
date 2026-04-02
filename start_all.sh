@@ -56,15 +56,27 @@ run_with_restart() {
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting $name..."
         "$@"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $name stopped (exit code $?), restarting in 5s..."
-        sleep 2
+        sleep 5
     done
 }
 
 # Start each in its own process group (set -m gives each bg job its own pgid)
 set -m
-run_with_restart "Bot2"      python run_bot.py bot2 &
-run_with_restart "Reddit"    python run_bot.py reddit &
-# X bots (twitter/xcn/xai/xniche) consolidated — digests via cron send_xdigest.py
+
+# Auto-discover and launch all persona bots from personas/*.json
+for config in personas/*.json; do
+    [ -f "$config" ] || continue
+    # Skip the example template
+    basename_f=$(basename "$config" .json)
+    [ "$basename_f" = "example" ] && continue
+    pid=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "$config" 2>/dev/null)
+    if [ -n "$pid" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Auto-discovered persona: $pid"
+        run_with_restart "$pid" python run_bot.py "$pid" &
+    fi
+done
+
+# Admin bot (always runs — not a persona)
 run_with_restart "Admin"     python admin_bot.py &
 
 # Save process group IDs for clean shutdown

@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    volumes:
+      - ./personas:/app/personas
+      - bot-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  bot-data:
