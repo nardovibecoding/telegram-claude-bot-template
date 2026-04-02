@@ -3,7 +3,7 @@
 import re
 
 import os
-PATH = os.path.expanduser("~/telegram-claude-bot/bot.py")
+PATH = os.path.expanduser("~/telegram-claude-bot-template/bot.py")
 
 with open(PATH) as f:
     code = f.read()

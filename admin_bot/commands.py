@@ -248,9 +248,9 @@ async def cmd_restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 os.kill(int(pid), signal.SIGTERM)
             except Exception:
                 pass
-        await update.message.reply_text(f"🔄 {bot_name} killed (PID {pids}). 5 秒內重啟。")
+        await update.message.reply_text(f"🔄 {bot_name} killed (PID {pids}). Restarting in 5s.")
     else:
-        await update.message.reply_text(f"⚠️ {bot_name} 冇搵到進程。")
+        await update.message.reply_text(f"⚠️ {bot_name} process not found.")
 
 
 @admin_only
@@ -1335,7 +1335,7 @@ async def cmd_homein(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🟧 Session saved for Mac:\n<code>{sid}</code>\n\n"
         f"Domain: {key}\n"
-        f"到家後 Mac 行: <code>/homein</code>",
+        f"On your Mac, run: <code>/homein</code>",
         parse_mode="HTML",
     )
 
@@ -1378,7 +1378,7 @@ async def cmd_homeout(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "⚠️ No pending session.\n"
                 "<code>/homeout &lt;session_id&gt;</code>\n\n"
-                "Or Mac 行 /homeout 先。",
+                "Or run /homeout on Mac first.",
                 parse_mode="HTML",
             )
         return
@@ -1829,259 +1829,6 @@ async def cmd_goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
-@admin_only
-async def cmd_redteamstart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start the red team test script."""
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c",
-        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
-        "nohup python outreach/red_team_auto.py > /tmp/red_team_results.log 2>&1 & echo $!",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    pid = stdout.decode().strip()
-    red_team_bot = os.environ.get("RED_TEAM_BOT_USERNAME", "your_test_bot")
-    await update.message.reply_text(f"Red team (live TG) started (PID: {pid})\n\n~380 attacks via @{red_team_bot}\n/redteamstop to cancel")
-
-
-@admin_only
-async def cmd_redteamstop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Stop the red team test script."""
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c", "pkill -f 'red_team_auto.py' 2>/dev/null && echo killed || echo not_running",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    if "killed" in stdout.decode():
-        await update.message.reply_text("Red team (live) stopped.")
-    else:
-        await update.message.reply_text("Red team not running.")
-
-
-@admin_only
-async def cmd_autoreplyon(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start the auto-reply service."""
-    proc = await asyncio.create_subprocess_exec(
-        "systemctl", "--user", "start", "outreach-autoreply",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    await proc.communicate()
-    await update.message.reply_text("Auto-reply ON")
-
-
-@admin_only
-async def cmd_autoreplyoff(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Stop the auto-reply service."""
-    proc = await asyncio.create_subprocess_exec(
-        "systemctl", "--user", "stop", "outreach-autoreply",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    await proc.communicate()
-    await update.message.reply_text("Auto-reply OFF")
-
-
-@admin_only
-async def cmd_autolist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show all chats with auto-reply enabled (via ...on)."""
-    db_path = os.path.join(PROJECT_DIR, "outreach.db")
-    try:
-        import sqlite3 as _sq
-        conn = _sq.connect(db_path)
-        rows = conn.execute(
-            "SELECT chat_id, updated_at FROM auto_reply_state "
-            "WHERE auto_enabled = 1 ORDER BY updated_at DESC"
-        ).fetchall()
-        conn.close()
-    except Exception as e:
-        await update.message.reply_text(f"❌ DB error: {e}")
-        return
-
-    if not rows:
-        await update.message.reply_text("No chats with auto-reply enabled.\nUse <code>...on</code> inside a DM to activate.", parse_mode="HTML")
-        return
-
-    lines = [f"<b>Auto-reply active ({len(rows)} chats):</b>\n"]
-    for chat_id, updated in rows:
-        lines.append(f"• <code>{chat_id}</code> (since {updated[:16]})")
-
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
-
-
-@admin_only
-async def cmd_redteameval(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Run the red team evaluator to grade bot responses."""
-    await update.message.reply_text("Starting red team evaluation...\nThis takes ~5 min (LLM grading 40+ batches)")
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c",
-        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
-        "python outreach/red_team_eval.py 2>&1 | tail -30",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await update.message.reply_text("⚠️ Red team eval timed out (10 min)")
-        return
-    output = stdout.decode().strip()
-    if not output:
-        output = stderr.decode().strip() or "No output"
-
-    # Extract TG summary (last few lines) and send
-    lines = output.split("\n")
-    # Find the summary section
-    summary_lines = []
-    in_summary = False
-    for line in lines:
-        if "SUMMARY" in line or "TG Summary" in line:
-            in_summary = True
-        if in_summary:
-            summary_lines.append(line)
-        if len(summary_lines) > 15:
-            break
-
-    if summary_lines:
-        msg = "\n".join(summary_lines)
-    else:
-        # Send last 20 lines as fallback
-        msg = "\n".join(lines[-20:])
-
-    # Truncate to TG message limit
-    if len(msg) > 4000:
-        msg = msg[:4000] + "\n..."
-
-    await update.message.reply_text(
-        f"<b>Red Team Eval Complete</b>\n\n"
-        f"<pre>{html_escape(msg)}</pre>\n\n"
-        f"Full report: /tmp/red_team_report.txt",
-        parse_mode="HTML",
-    )
-
-
-@admin_only
-async def cmd_redteamoffline(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start offline red team test (no Telegram messages, uses LLM directly)."""
-    # Check if already running
-    check = await asyncio.create_subprocess_exec(
-        "pgrep", "-f", "red_team_offline",
-        stdout=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await check.communicate()
-    if stdout.decode().strip():
-        await update.message.reply_text("Offline red team already running.")
-        return
-
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c",
-        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
-        "nohup python outreach/red_team_offline.py >> /tmp/red_team_offline.log 2>&1 & echo $!",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    pid = stdout.decode().strip()
-    await update.message.reply_text(
-        f"Offline red team started (PID: {pid})\n\n"
-        f"~380 attacks, ~60 min\n"
-        f"You'll get a TG notification when done.\n\n"
-        f"/redteamofflinestop to cancel"
-    )
-
-
-@admin_only
-async def cmd_redteamofflinestop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Stop the offline red team test."""
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c", "pkill -f 'red_team_offline.py' 2>/dev/null && echo killed || echo not_running",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    if "killed" in stdout.decode():
-        await update.message.reply_text("Offline red team stopped.")
-    else:
-        await update.message.reply_text("Offline red team not running.")
-
-
-@admin_only
-async def cmd_redteamgenerate(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Generate new red team attacks from last test results."""
-    # Check if report exists
-    if not os.path.exists("/tmp/red_team_report.md"):
-        await update.message.reply_text("No report found at /tmp/red_team_report.md\nRun /redteamoffline first.")
-        return
-
-    # Check if already running
-    check = await asyncio.create_subprocess_exec(
-        "pgrep", "-f", "red_team_generate",
-        stdout=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await check.communicate()
-    if stdout.decode().strip():
-        await update.message.reply_text("Attack generator already running.")
-        return
-
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c",
-        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
-        "nohup python outreach/red_team_generate.py > /tmp/red_team_generate.log 2>&1 & echo $!",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    pid = stdout.decode().strip()
-    await update.message.reply_text(
-        f"Attack generator started (PID: {pid})\n\n"
-        f"~380 new attacks from last report\n"
-        f"~10 min (19 batches x LLM calls)\n"
-        f"You'll get a TG notification when done.\n\n"
-        f"Output: /tmp/red_team_gen_attacks.py\n"
-        f"Then run: /redteamofflinegen to test them"
-    )
-
-
-@admin_only
-async def cmd_redteamofflinegen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Run offline red team test using generated attacks."""
-    gen_file = "/tmp/red_team_gen_attacks.py"
-    if not os.path.exists(gen_file):
-        await update.message.reply_text(
-            "No generated attacks found at /tmp/red_team_gen_attacks.py\n"
-            "Run /redteamgenerate first."
-        )
-        return
-
-    # Check if already running
-    check = await asyncio.create_subprocess_exec(
-        "pgrep", "-f", "red_team_offline",
-        stdout=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await check.communicate()
-    if stdout.decode().strip():
-        await update.message.reply_text("Offline red team already running.")
-        return
-
-    proc = await asyncio.create_subprocess_exec(
-        "bash", "-c",
-        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
-        f"nohup python outreach/red_team_offline.py --attacks {gen_file} >> /tmp/red_team_offline.log 2>&1 & echo $!",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await proc.communicate()
-    pid = stdout.decode().strip()
-    await update.message.reply_text(
-        f"Offline red team (generated attacks) started (PID: {pid})\n\n"
-        f"Using attacks from: {gen_file}\n"
-        f"~60 min\n"
-        f"You'll get a TG notification when done.\n\n"
-        f"/redteamofflinestop to cancel"
-    )
 
 
 # ── Background tasks ──────────────────────────────────────────────────────

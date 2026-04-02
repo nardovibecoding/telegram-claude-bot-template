@@ -18,10 +18,7 @@ from .commands import (
     cmd_health, cmd_cron, cmd_rerun, cmd_disk, cmd_panel,
     cmd_watchdog, cmd_homein, cmd_homeout,
     cmd_config, cmd_trends, cmd_usage, cmd_export, cmd_unsent, cmd_skills, cmd_menu,
-    cmd_library, cmd_goals, cmd_redteamstart, cmd_redteamstop,
-    cmd_redteamoffline, cmd_redteamofflinestop, cmd_redteameval,
-    cmd_redteamgenerate, cmd_redteamofflinegen,
-    cmd_autoreplyon, cmd_autoreplyoff, cmd_autolist,
+    cmd_library, cmd_goals,
     cmd_bg, cmd_bgkill,
     cmd_content, cmd_draft, cmd_checkpoint_view,
 )
@@ -161,30 +158,6 @@ def main():
     app.add_handler(CommandHandler("content", cmd_content))
     app.add_handler(CommandHandler("draft", cmd_draft))
     app.add_handler(CommandHandler("checkpoint", cmd_checkpoint_view))
-    # Auto-reply controls (short + long names)
-    app.add_handler(CommandHandler("autoon", cmd_autoreplyon))
-    app.add_handler(CommandHandler("autooff", cmd_autoreplyoff))
-    app.add_handler(CommandHandler("autoreplyon", cmd_autoreplyon))
-    app.add_handler(CommandHandler("autoreplyoff", cmd_autoreplyoff))
-    app.add_handler(CommandHandler("autolist", cmd_autolist))
-    # Red team — short names
-    app.add_handler(CommandHandler("redon", cmd_redteamoffline))        # offline (default, background)
-    app.add_handler(CommandHandler("redoff", cmd_redteamofflinestop))   # stop offline
-    app.add_handler(CommandHandler("redontg", cmd_redteamstart))       # live TG (sends real msgs)
-    app.add_handler(CommandHandler("redofftg", cmd_redteamstop))       # stop live TG
-    # Red team — evaluate + generate
-    app.add_handler(CommandHandler("redteameval", cmd_redteameval))
-    app.add_handler(CommandHandler("redteamgenerate", cmd_redteamgenerate))
-    app.add_handler(CommandHandler("redteamofflinegen", cmd_redteamofflinegen))
-    # Old verbose names as aliases
-    app.add_handler(CommandHandler("redteamon", cmd_redteamstart))
-    app.add_handler(CommandHandler("redteamoff", cmd_redteamstop))
-    app.add_handler(CommandHandler("redteamstart", cmd_redteamstart))
-    app.add_handler(CommandHandler("redteamstop", cmd_redteamstop))
-    app.add_handler(CommandHandler("redteamofflineon", cmd_redteamoffline))
-    app.add_handler(CommandHandler("redteamofflineoff", cmd_redteamofflinestop))
-    app.add_handler(CommandHandler("redteamoffline", cmd_redteamoffline))
-    app.add_handler(CommandHandler("redteamofflinestop", cmd_redteamofflinestop))
 
     # Callback query handlers
     app.add_handler(CallbackQueryHandler(handle_stop, pattern=r"^stop:"))

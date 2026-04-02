@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 
-BASE = os.path.expanduser("~/telegram-claude-bot")
+BASE = os.path.expanduser("~/telegram-claude-bot-template")
 now = time.time()
 H12 = 43200
 H48 = 172800

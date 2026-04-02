@@ -244,7 +244,7 @@ async def _daily_review(context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d (%A)")
 
     prompt = (
-        f"Today is {today}. You are doing a daily autonomous review of the telegram-claude-bot codebase.\n\n"
+        f"Today is {today}. You are doing a daily autonomous review of the telegram-claude-bot-template codebase.\n\n"
         f"TODAY'S FOCUS: {focus}\n\n"
         "Instructions:\n"
         "1. Check /tmp/start_all.log (last 200 lines) for recent errors or warnings\n"

@@ -17,7 +17,7 @@ import re
 import subprocess
 from pathlib import Path
 
-PRIVATE_ROOT = Path(__file__).parent.parent  # telegram-claude-bot/
+PRIVATE_ROOT = Path(__file__).parent.parent  # telegram-claude-bot-template/
 PUBLIC_ROOT = Path.home()  # public repos cloned alongside
 _GH_USER = os.environ.get("GITHUB_USER", "YOUR_GITHUB_USER")
 _COPYRIGHT = "# Copyright (c) 2026 Nardo (nardovibecoding). AGPL-3.0 — see LICENSE"
@@ -108,8 +108,8 @@ SYNC_MAP = {
 # ── Sanitization ────────────────────────────────────────────────────────
 
 _STRIP_PATTERNS = [
-    (re.compile(r"/Users/[^/]+/telegram-claude-bot/"), "~/telegram-claude-bot/"),
-    (re.compile(r"/home/[^/]+/telegram-claude-bot/"), "~/telegram-claude-bot/"),
+    (re.compile(r"/Users/[^/]+/telegram-claude-bot-template/"), "~/telegram-claude-bot-template/"),
+    (re.compile(r"/home/[^/]+/telegram-claude-bot-template/"), "~/telegram-claude-bot-template/"),
     (re.compile(r"\w+@\d+\.\d+\.\d+\.\d+"), "<user>@<vps-ip>"),
     (re.compile(r"nardovibecoding"), "<github-user>"),
 ]

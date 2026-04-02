@@ -1165,9 +1165,9 @@ def run_persona(persona_id: str) -> None:
                     os.kill(int(pid), signal.SIGTERM)
                 except (ValueError, ProcessLookupError) as e:
                     logger.warning("kill pid failed: %s", e)
-            await update.message.reply_text(f"🔄 Admin bot killed (PID {pids}). start_all.sh 會 5 秒內重啟。")
+            await update.message.reply_text(f"🔄 Admin bot killed (PID {pids}). start_all.sh will restart in 5s.")
         else:
-            await update.message.reply_text("⚠️ Admin bot 冇搵到進程。")
+            await update.message.reply_text("⚠️ Admin bot process not found.")
 
     app.add_handler(CommandHandler("restart_admin", restart_admin))
     app.add_handler(CommandHandler("register",    register))

@@ -181,7 +181,7 @@ async def handle_commit_deploy(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         proc = await asyncio.create_subprocess_exec(
             "bash", "-c",
-            "cd ~/telegram-claude-bot && git pull origin main && git add -A && git commit -m 'TG auto-commit' && git push origin main",
+            "cd ~/telegram-claude-bot-template && git pull origin main && git add -A && git commit -m 'TG auto-commit' && git push origin main",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
@@ -458,7 +458,7 @@ async def handle_ai_learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Proposed action: {proposed_action}\n\n"
                 f"Instructions:\n"
                 f"1. If there's a URL, read it (WebFetch or Read the repo)\n"
-                f"2. Analyze how it's relevant to OUR system (telegram-claude-bot, MCP servers, CLAUDE.md)\n"
+                f"2. Analyze how it's relevant to OUR system (telegram-claude-bot-template, MCP servers, CLAUDE.md)\n"
                 f"3. Output a draft with:\n"
                 f"   - What it is (2 sentences)\n"
                 f"   - Why it matters for us (specific files/systems affected)\n"
@@ -1026,7 +1026,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines = ["<b>\U0001f504 Sync</b>", sep, "GitHub \u2194 VPS:"]
 
         repos = [
-            ("telegram-claude-bot", f"/home/{os.getenv('VPS_USER', 'YOUR_VPS_USER')}/telegram-claude-bot"),
+            ("telegram-claude-bot-template", f"/home/{os.getenv('VPS_USER', 'YOUR_VPS_USER')}/telegram-claude-bot-template"),
             ("ops-guard-mcp", f"/home/{os.getenv('VPS_USER', 'YOUR_VPS_USER')}/ops-guard-mcp"),
         ]
         for repo_name, repo_path in repos:

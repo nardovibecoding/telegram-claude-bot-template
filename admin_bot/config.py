@@ -50,7 +50,7 @@ _MEMORY_INDEX = _load_memory_index()
 
 _CONTENT_DRAFTS_INSTRUCTION = (
     "AUTO-SAVE TWEETS: When Owner shares insights, discoveries, surprising numbers, or ideas worth tweeting: "
-    "1) Append to ~/telegram-claude-bot/content_drafts/running_log.md using: "
+    "1) Append to ~/telegram-claude-bot-template/content_drafts/running_log.md using: "
     "python3 -c \"from utils import save_to_content_drafts; save_to_content_drafts('TEXT', 'CATEGORY')\" "
     "(or use the Write/Edit tool directly). "
     "2) Reply with 💾 to confirm. "
@@ -78,15 +78,18 @@ _CRAWL_WORKFLOW = (
     "Minimize API calls — use search results directly for sorting, only fetch details when user asks."
 )
 
+# Add your own group IDs and thread→domain mappings here.
+# Example: TOOLS_GROUP = int(os.environ.get("TOOLS_GROUP_ID", "0"))
+# Example: TOOLS_THREADS = {2: "email", 3: "search", 6: "translate"}
 TEAM_E_GROUP = int(os.environ.get("TEAM_E_GROUP_ID", "0"))
-TEAM_E_THREADS = {2: "email", 3: "airbnb", 6: "whatsapp"}
+TEAM_E_THREADS = {}  # Map thread IDs to domain names, e.g. {2: "email", 3: "search"}
 PERSONAL_GROUP = int(os.environ.get("PERSONAL_GROUP_ID", "0"))
-PERSONAL_THREADS = {2: "personal:douyin", 3: "personal:xhs", 8: "personal:crm"}
+PERSONAL_THREADS = {}  # Map thread IDs to domain names, e.g. {2: "research", 3: "social"}
 
 SYSTEM_PROMPTS = {
     "news": (
         f"{_BASE_PROMPT} "
-        "Current domain: News Forum (telegram-claude-bot). "
+        "Current domain: News Forum (telegram-claude-bot-template). "
         "You manage 8 persona bots + digests + X curation + Reddit."
     ),
     "team_a": (
@@ -122,58 +125,20 @@ SYSTEM_PROMPTS = {
         "After coding, ALWAYS do: git add -A && git diff --cached to show what changed. "
         "Do NOT commit — wait for code review approval."
     ),
-    "email": (
-        "You are Owner's email assistant. "
-        "You have Gmail access via MCP tools. "
-        "Tasks: read, search, draft emails. Summarize in simple language. "
-        "Be helpful and patient — the user may not be tech-savvy. "
-        "Reply in the same language the user writes."
-    ),
-    "airbnb": (
-        "You are Owner's Airbnb/travel assistant. "
-        "Tasks: search Airbnb listings, compare prices, filter by dates/location/guests/budget, "
-        "check availability, summarize options clearly. "
-        "Use Firecrawl or WebFetch to scrape Airbnb pages. "
-        "Present results in a clear table format. "
-        "Be helpful and patient — the user may not be tech-savvy. "
-        "Reply in the same language the user writes."
-    ),
-    "personal": (
-        f"{_BASE_PROMPT} "
-        "Current domain: AI Personal. "
-        "Your role: crawl and search social media, shopping sites, and other platforms for Owner. "
-        "Tools: MediaCrawler (~/MediaCrawler/) for Douyin/XHS/Bilibili/Weibo/Kuaishou/Tieba/Zhihu, "
-        "xiaohongshu MCP (localhost:18060) for XHS read/write/interact. "
-        "User will give keywords and criteria (views, likes, date range) — never ask for links. "
-        "Filter and summarize results clearly."
-    ),
-    "personal:douyin": (
-        f"{_BASE_PROMPT} {_CRAWL_WORKFLOW} "
-        "Current domain: AI Personal — Douyin (抖音). "
-        "Use MediaCrawler: cd ~/MediaCrawler && source venv/bin/activate && xvfb-run python main.py --platform douyin --type search --keywords \"keyword\"."
-    ),
-    "personal:crm": (
-        f"{_BASE_PROMPT} "
-        "Current domain: CRM Form Filler. "
-        "Owner forwards project info. Extract all relevant data and generate a JS console command "
-        "to auto-fill the CRM form. Save the JS to ~/clipboard/fill.txt. "
-        "Save any screenshots as ~/clipboard/111.jpg, 222.jpg, etc. "
-        "Read the CRM form rules in CLAUDE.md for field mappings and logic. "
-        f"Always tell Owner: open http://{os.environ.get('VPS_HOST', 'YOUR_VPS_IP')}:8888/fill.txt on Windows, copy all, paste in F12."
-    ),
-    "personal:xhs": (
-        f"{_BASE_PROMPT} {_CRAWL_WORKFLOW} "
-        "Current domain: AI Personal — Xiaohongshu (小红书). "
-        "ALWAYS use xiaohongshu MCP tools (search_feeds, get_feed_detail, user_profile) — never curl/bash workarounds. "
-        "search_feeds returns likes/favorites/shares — use for sorting. Only call get_feed_detail for full content/comments."
-    ),
-    "whatsapp": (
-        "You are Owner's WhatsApp assistant. "
-        "Tasks: help draft WhatsApp messages, translate messages, "
-        "summarize long group chats, compose replies. "
-        "Be helpful and patient — the user may not be tech-savvy. "
-        "Reply in the same language the user writes."
-    ),
+    # ── Example domains ──
+    # Add your own domains here. Each key maps a domain name to a system prompt.
+    # Register a domain with /domain <name> in a Telegram group thread.
+    #
+    # "email": (
+    #     "You are Owner's email assistant. "
+    #     "You have Gmail access via MCP tools. "
+    #     "Tasks: read, search, draft emails."
+    # ),
+    # "research": (
+    #     "You are a research assistant. "
+    #     "Use WebSearch and WebFetch to find information. "
+    #     "Summarize findings clearly with sources."
+    # ),
 }
 
 PIDFILE = os.path.join(PROJECT_DIR, ".admin_bot.pid")
