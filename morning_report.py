@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 HKT = timezone(timedelta(hours=8))
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_ADMIN", "")
 CHAT_ID = int(os.environ.get("PERSONAL_GROUP_ID", "0"))  # PERSONAL_GROUP
-THREAD_ID = 152  # Healer/Heartbeat
+THREAD_ID = int(os.environ.get("HEARTBEAT_THREAD_ID", "0"))
 HISTORY_FILE = BASE_DIR / ".morning_report_history.json"
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
-# VPS Setup Script for telegram-claude-bot
+# VPS Setup Script for telegram-claude-bot-template
 # Run as root on a fresh Ubuntu 24.04 server
 set -e
 
@@ -25,7 +25,7 @@ if ! id YOUR_VPS_USER &>/dev/null; then
 fi
 
 echo "=== Step 4: Setup project ==="
-PROJECT="/home/YOUR_VPS_USER/telegram-claude-bot"
+PROJECT="/home/YOUR_VPS_USER/telegram-claude-bot-template"
 if [ ! -d "$PROJECT" ]; then
     mkdir -p "$PROJECT"
 fi
@@ -48,11 +48,11 @@ After=network.target
 
 [Service]
 User=YOUR_VPS_USER
-WorkingDirectory=/home/YOUR_VPS_USER/telegram-claude-bot
+WorkingDirectory=/home/YOUR_VPS_USER/telegram-claude-bot-template
 ExecStart=/bin/bash start_all.sh
 Restart=always
 RestartSec=10
-Environment=PATH=/home/YOUR_VPS_USER/telegram-claude-bot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/home/YOUR_VPS_USER/telegram-claude-bot-template/venv/bin:/usr/local/bin:/usr/bin:/bin
 StandardOutput=append:/tmp/start_all.log
 StandardError=append:/tmp/start_all.log
 
@@ -79,7 +79,7 @@ echo "========================================="
 echo ""
 echo "Remaining manual steps:"
 echo "  1. Upload project files (rsync from Mac)"
-echo "  2. Install Python packages: cd ~/telegram-claude-bot && source venv/bin/activate && pip install -r requirements.txt"
+echo "  2. Install Python packages: cd ~/telegram-claude-bot-template && source venv/bin/activate && pip install -r requirements.txt"
 echo "  3. Install Playwright: playwright install chromium"
 echo "  4. Login to Claude: claude login"
 echo "  5. Start bots: sudo systemctl start telegram-bots"

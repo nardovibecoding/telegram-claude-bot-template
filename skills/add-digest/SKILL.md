@@ -70,12 +70,12 @@ if __name__ == '__main__':
 ### 3. Add cron entry (use add-cron skill)
 ```bash
 # Example: 12:00 HKT = 04:00 UTC
-ssh YOUR_VPS_USER@YOUR_VPS_IP "(crontab -l; echo '0 4 * * * cd ~/telegram-claude-bot && source venv/bin/activate && python send_<name>.py >> /tmp/start_all.log 2>&1  # 12:00 HKT') | crontab -"
+ssh YOUR_VPS_USER@YOUR_VPS_IP "(crontab -l; echo '0 4 * * * cd ~/telegram-claude-bot-template && source venv/bin/activate && python send_<name>.py >> /tmp/start_all.log 2>&1  # 12:00 HKT') | crontab -"
 ```
 
 ### 4. Test manually
 ```bash
-ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot && source venv/bin/activate && python send_<name>.py"
+ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot-template && source venv/bin/activate && python send_<name>.py"
 ```
 
 ### 5. Verify

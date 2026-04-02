@@ -21,7 +21,7 @@ Example: `t.me/c/XXXXXXXXXX/42` → chat_id: `-100XXXXXXXXXX`, thread_id: `42`
 
 ### 2. Read current config
 ```bash
-cat ~/telegram-claude-bot/domain_groups.json
+cat ~/telegram-claude-bot-template/domain_groups.json
 ```
 
 ### 3. Add new entry
@@ -47,7 +47,7 @@ python3 -c "import json; json.load(open('domain_groups.json')); print('Valid JSO
 git add domain_groups.json
 git commit -m "add <domain> to domain_groups"
 git push origin main
-ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot && git fetch && git reset --hard origin/main"
+ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot-template && git fetch && git reset --hard origin/main"
 ```
 
 ### 6. Verify with test message

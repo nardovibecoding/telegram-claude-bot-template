@@ -608,8 +608,8 @@ async def _probe_cron_jobs() -> list[ProbeResult]:
     # Jobs with expected run time (HKT) and log file
     jobs = [
         ("X Digest", 11, "/tmp/xdigest.log"),
-        ("Bot1 News", 12, "/tmp/digest_bot1.log"),
-        ("Bot2 Crypto", 13, "/tmp/digest_bot2.log"),
+        ("Bot1 Digest", 12, "/tmp/digest_bot1.log"),
+        ("Bot2 Digest", 13, "/tmp/digest_bot2.log"),
         ("Reddit Digest", 14, "/tmp/reddit_digest.log"),
         ("Evolution Digest", 12, "/tmp/ai_digest.log"),
         ("China Trends", 14, "/tmp/china_trends.log"),

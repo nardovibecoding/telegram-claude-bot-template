@@ -55,7 +55,7 @@ python3 -c "import py_compile; py_compile.compile('admin_bot/config.py', doraise
 Use deploy-vps skill. After deploy:
 ```bash
 # Restart start_all.sh to pick up new bot
-ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot && ./start_all.sh stop && sleep 10 && nohup ./start_all.sh >> /tmp/start_all.log 2>&1 &"
+ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot-template && ./start_all.sh stop && sleep 10 && nohup ./start_all.sh >> /tmp/start_all.log 2>&1 &"
 ```
 
 ### 7. Verify

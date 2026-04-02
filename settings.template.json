@@ -4,7 +4,7 @@
     "mac": "Mac — runs voice, sync, 11 MCPs, all hooks",
     "vps": "YOUR_VPS_PLAN YOUR_VPS_REGION — runs XHS + Douyin MCP, subset of hooks"
   },
-  "_api_keys": "All API keys in ~/telegram-claude-bot/.env — never in this file",
+  "_api_keys": "All API keys in ~/telegram-claude-bot-template/.env — never in this file",
   "_sync": "This template is git-synced. Real settings.json is NOT (machine-specific paths).",
 
   "mcpServers": {
@@ -26,7 +26,7 @@
   },
 
   "hooks": {
-    "_note": "All hooks live in telegram-claude-bot/hooks/ and deploy via deploy_hooks.sh",
+    "_note": "All hooks live in telegram-claude-bot-template/hooks/ and deploy via deploy_hooks.sh",
     "PreToolUse": [
       {"matcher": "Bash", "hooks": [
         {"type": "command", "command": "python3 ~/.claude/hooks/guard_safety.py", "timeout": 5000},

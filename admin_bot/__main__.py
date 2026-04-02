@@ -197,13 +197,6 @@ def main():
         log.error("Unhandled error: %s", context.error, exc_info=context.error)
     app.add_error_handler(_error_handler)
 
-    # Outreach admin commands (/outreach)
-    try:
-        from outreach.admin_commands import register_outreach_commands
-        register_outreach_commands(app)
-    except ImportError:
-        pass
-
     from .config import VERSION_STR
     log.info("Admin bot %s starting...", VERSION_STR)
     app.run_polling(

@@ -1187,28 +1187,6 @@ async def _panel_overview_text_and_kb(today_str: str):
     except Exception:
         pass
 
-    # Outreach summary
-    svc_active = False
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "systemctl", "--user", "is-active", "outreach-autoreply",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-        svc_out, _ = await proc.communicate()
-        svc_active = svc_out.decode().strip() == "active"
-    except Exception:
-        pass
-    if not svc_active:
-        try:
-            proc2 = await asyncio.create_subprocess_exec(
-                "pgrep", "-f", "auto_reply",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            pgrep_out, _ = await proc2.communicate()
-            svc_active = bool(pgrep_out.decode().strip())
-        except Exception:
-            pass
-
     sep = "─────────"
     text = (
         f"<b>🟧 Panel</b>\n{sep}\n"
@@ -1216,7 +1194,6 @@ async def _panel_overview_text_and_kb(today_str: str):
         f"{sync_line}\n"
         f"📝 Content: {draft_count} draft, {queue_count} queued\n"
         f"⚙️ Config: {_panel_primary_model()}, {persona_count} personas\n"
-        f"📨 Outreach: auto-reply {'ON' if svc_active else 'OFF'}\n"
         f"{sep}"
     )
     kb = InlineKeyboardMarkup([[
@@ -1224,14 +1201,13 @@ async def _panel_overview_text_and_kb(today_str: str):
         InlineKeyboardButton("🔄", callback_data="panel:sync"),
         InlineKeyboardButton("📝", callback_data="panel:content"),
         InlineKeyboardButton("⚙️", callback_data="panel:config"),
-        InlineKeyboardButton("📨", callback_data="panel:outreach"),
     ]])
     return text, kb
 
 
 @admin_only
 async def cmd_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Control panel overview with 5 tabs: Health, Sync, Content, Config, Outreach."""
+    """Control panel overview with 4 tabs: Health, Sync, Content, Config."""
     from datetime import datetime, timezone
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     text, kb = await _panel_overview_text_and_kb(today_str)
