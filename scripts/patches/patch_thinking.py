@@ -9,9 +9,9 @@ with open(PATH) as f:
 # Replace typing action with thinking message
 code = code.replace(
     '    await update.effective_chat.send_action("typing")\n'
-    '    _add_message(EDWIN_USER_ID, "user", text)',
+    '    _add_message(USER_ID, "user", text)',
     '    thinking_msg = await update.message.reply_text("思考中...")\n'
-    '    _add_message(EDWIN_USER_ID, "user", text)'
+    '    _add_message(USER_ID, "user", text)'
 )
 
 # After response is sent, delete the thinking message

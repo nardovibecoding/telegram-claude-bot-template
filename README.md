@@ -8,38 +8,33 @@ Built and battle-tested as a personal AI assistant system running 8 bots 24/7 on
 
 ## What you get
 
-**Multi-persona bot framework**
-- Each persona is a JSON config — define character, system prompt, and what content it receives
-- All bots share the same base (`bot_base.py`) with per-persona memory (SQLite vector DB)
-- Bots auto-restart on crash via `start_all.sh`
+### Multi-persona bot framework
 
-**Claude Code admin bot**
-- Control your entire bot system through a Telegram chat
-- Full Claude Code tool access: read/edit files, run commands, commit code
-- Animated progress spinner, queue system, photo/PDF support, `/panel` control panel
-- Stuck-process watchdog with heartbeat monitoring
+Most bot systems give you one identity. But different contexts need different voices — a research assistant, a crypto analyst, a personal coach. Building separate codebases for each is wasteful, and manually keeping them in sync is worse. This framework runs every persona from a single shared codebase. Each bot is just a JSON config file — define the character, the system prompt, and what content it receives. Add a new persona in minutes, not days.
 
-**Auto-healer**
-- Runs every 3 hours, detects failures across all components
-- Self-diagnoses and spawns Claude Code to auto-fix where possible
-- Alerts to Telegram with severity levels (🔴 CRITICAL → 🟢 LOW)
-- Issue deduplication — only re-alerts after 24h
+### Claude Code admin bot
 
-**LLM fallback chain**
-- Primary: Kimi → Cerebras → DeepSeek → Gemini → (any OpenAI-compatible)
-- Configurable in `llm_client.py` — one place, all bots pick it up
-- Per-model timeout + graceful degradation on API failures
+Your bots are running on a VPS. When something breaks, or you want to push a change, you'd normally need to SSH in, edit files, restart processes. That's fine at a desk — impossible on a phone at 2am. The admin bot gives you full Claude Code tool access directly in Telegram: read and edit files, run terminal commands, commit and deploy code. A `/panel` control panel shows all bot statuses with restart buttons. You manage the entire system from your phone without touching a terminal.
 
-**Content digest pipelines** (optional, use what you need)
-- News aggregation with multi-source cross-checking (`news.py`)
-- X/Twitter curation with bookmark taste profile (`x_curator.py`)
-- Reddit digest with fuzzy dedup (`reddit_digest.py`)
-- YouTube, podcast, crypto, China trends digests
-- Fetch watchdog monitors source health daily
+### Auto-healer
 
-**Voice** (optional)
-- STT: Whisper large-v3 via faster-whisper, per-persona language setting
-- TTS: MiniMax T2A v2
+Bots crash. APIs go down. Processes hang. On a €5 VPS running 8 bots, something will go wrong overnight and you won't know until morning. The auto-healer runs every 3 hours, checks every component, and when it finds a failure it spawns Claude Code to diagnose and fix it automatically. If it can't fix it, it alerts you in Telegram with the exact severity and what it tried. Issues don't re-alert for 24 hours so you're not spammed. Most problems resolve before you wake up.
+
+### LLM fallback chain
+
+Any single LLM API will go down — rate limits, outages, billing issues. A bot that depends on one provider is one failure away from going silent. The fallback chain routes through Kimi → Cerebras → DeepSeek → Gemini automatically. If the primary fails mid-conversation, the next one picks it up. All bots share one config in `llm_client.py` — change the chain order in one place and every persona picks it up instantly.
+
+### Content digest pipelines
+
+Your bots can be more than chat — they can push curated content to you on a schedule. News with multi-source cross-checking, X/Twitter curation filtered by your bookmark taste profile, Reddit digests with fuzzy dedup so the same story doesn't appear twice, YouTube and podcast summaries, crypto and China trends. A fetch watchdog runs daily and alerts if any source goes stale. All optional — use the ones that fit your setup.
+
+### Team agents
+
+Working solo on a complex product means wearing every hat at once — researcher, critic, builder, growth strategist. Context gets lost between sessions and between roles. The team agent system maps specialized AI agents to threads in a Telegram group: Scout researches, Critic stress-tests, Builder implements, Growth strategizes. They share context automatically through file-based handoffs — Builder sees what Scout found without you copy-pasting anything. One `/approve` unlocks the team after Scout reports. `/resetphase` wipes the slate for the next problem.
+
+### Voice
+
+Typing out a complex bug or a half-formed idea is slow and loses nuance. When you're stuck on something hard, speaking it out loud is faster and more natural — you can describe the problem, think through it, give long instructions without switching to a keyboard. Voice input sends your audio straight to the admin bot via Whisper `large-v3`. Per-persona language settings mean each bot transcribes in the right language. TTS lets bots speak responses back when you'd rather listen than read.
 
 ---
 
@@ -119,22 +114,22 @@ run_with_restart "MyBot" python run_bot.py mybot &
 
 ## Deploying to a VPS
 
-The system is designed for a cheap VPS (tested on YOUR_VPS_PLAN, €4.35/mo):
+The system is designed for a cheap Linux VPS (tested on Hetzner CX22, €4.35/mo):
 
 ```bash
 # On VPS: clone repo, set up .env, install deps
-git clone https://github.com/your-org/telegram-claude-bot-template
-cd telegram-claude-bot && python -m venv venv && source venv/bin/activate
+git clone https://github.com/nardovibecoding/telegram-claude-bot-template
+cd telegram-claude-bot-template && python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt && cp .env.example .env
 
 # Start bots
 ./start_all.sh
 
 # Auto-pull updates (add to crontab)
-*/1 * * * * cd ~/telegram-claude-bot && git pull --ff-only >> /tmp/gitpull.log 2>&1
+*/1 * * * * cd ~/telegram-claude-bot-template && git pull --ff-only >> /tmp/gitpull.log 2>&1
 
 # Auto-healer (add to crontab)
-0 */3 * * * cd ~/telegram-claude-bot && source venv/bin/activate && python auto_healer.py >> /tmp/healer.log 2>&1
+0 */3 * * * cd ~/telegram-claude-bot-template && source venv/bin/activate && python auto_healer.py >> /tmp/healer.log 2>&1
 ```
 
 ---
@@ -155,11 +150,7 @@ pip install -r requirements.txt && cp .env.example .env
 
 ---
 
-## Team Agents
-
-The template includes a multi-agent team system where specialized AI agents collaborate on a project through Telegram group topics.
-
-### How it works
+## Team agents — how handoffs work
 
 Create a Telegram group with topics (threads). Each topic maps to an agent role:
 
@@ -172,34 +163,20 @@ Create a Telegram group with topics (threads). Each topic maps to an agent role:
 
 Register the group: `/domain team_a`
 
-### Agent workflow
-
+**Workflow:**
 ```
 Scout researches → /approve unlocks other agents → Builder/Growth/Critic work
                                                   ↓
                                           /resetphase starts fresh
 ```
 
-### Handoffs
+Agent outputs are saved to `.handoffs/` (7-day TTL). Each agent sees the other agents' context prepended to its prompt — no manual copy-paste. Builder's output gets auto-reviewed by Opus before committing, with up to 3 Sonnet fix rounds. Commit requires explicit approval via inline button.
 
-Agents automatically share context. When Scout finds an opportunity, Builder sees that context when you send it a task. No manual copy-paste needed.
-
-- Agent outputs saved to `.handoffs/` (file-based, 7-day TTL)
-- Each agent sees other agents' output, not its own
-- `/resetphase` clears all handoff context for a fresh start
-
-### Guardrails
-
-- Builder output gets auto-reviewed by Opus before committing
-- Up to 3 fix rounds (Sonnet fixes issues Opus finds)
-- Commit requires explicit approval via inline button
-
-### Adding more teams
-
+**Adding more teams:**
 1. Add system prompts to `admin_bot/config.py` (e.g. `"team_b:scout"`)
 2. Add thread mappings to `admin_bot/domains.py`
 3. Add domain entries to `admin_bot/handoff.py` `TEAM_DOMAINS` dict
-4. Register the new group: `/domain team_b`
+4. Register: `/domain team_b`
 
 ---
 
