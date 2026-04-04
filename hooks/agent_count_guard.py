@@ -40,8 +40,16 @@ def main():
     COUNTER_FILE.write_text(json.dumps(counter))
 
     if counter["count"] > 1:
-        print("⚠️ Spawning multiple agents. How many do you need? (1-3)", file=sys.stderr)
-        sys.exit(2)
+        # Ask user for confirmation instead of hard block
+        result = {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "ask",
+                "permissionDecisionReason": f"Already spawning {counter['count'] - 1} agent(s). Allow another? ({counter['count']} total)",
+            }
+        }
+        print(json.dumps(result))
+        return
 
     print("{}")
 
