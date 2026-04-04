@@ -146,7 +146,7 @@ async def _deep_heartbeat(context: ContextTypes.DEFAULT_TYPE):
     """Deep health check every 6h — checks all services, only alerts on problems."""
     issues = []
 
-    for bot_id in ["bot1", "bot2"]:
+    for bot_id in ["daliu", "sbf"]:
         proc = await asyncio.create_subprocess_exec(
             "pgrep", "-f", f"run_bot.py {bot_id}",
             stdout=asyncio.subprocess.PIPE,
@@ -155,17 +155,6 @@ async def _deep_heartbeat(context: ContextTypes.DEFAULT_TYPE):
         if not stdout.decode().strip():
             issues.append(f"🔴 Bot <b>{bot_id}</b> is DOWN")
 
-    for name, port in [("XHS MCP", 18060), ("Douyin MCP", 18070)]:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "curl", "-sf", "--max-time", "5", f"http://localhost:{port}/health",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate()
-            if proc.returncode != 0:
-                issues.append(f"🔴 <b>{name}</b> (:{port}) not responding")
-        except Exception:
-            issues.append(f"🔴 <b>{name}</b> (:{port}) check failed")
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -244,7 +233,7 @@ async def _daily_review(context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d (%A)")
 
     prompt = (
-        f"Today is {today}. You are doing a daily autonomous review of the telegram-claude-bot-template codebase.\n\n"
+        f"Today is {today}. You are doing a daily autonomous review of the telegram-claude-bot codebase.\n\n"
         f"TODAY'S FOCUS: {focus}\n\n"
         "Instructions:\n"
         "1. Check /tmp/start_all.log (last 200 lines) for recent errors or warnings\n"
@@ -336,12 +325,12 @@ async def _daily_review(context: ContextTypes.DEFAULT_TYPE):
         log.error("Daily review failed: %s", e)
 
 
-# ── Team A Scout ────────────────────────────────────────────────────────
+# ── Andrea Scout ────────────────────────────────────────────────────────
 
-async def _run_team_a_scout(bot, notify_chat_id: int | None = None) -> None:
-    """Run team_a_scout.py as subprocess and optionally notify on error."""
+async def _run_andrea_scout(bot, notify_chat_id: int | None = None) -> None:
+    """Run andrea_scout.py as subprocess and optionally notify on error."""
     venv_python = os.path.join(PROJECT_DIR, "venv", "bin", "python")
-    scout_script = os.path.join(PROJECT_DIR, "team_a_scout.py")
+    scout_script = os.path.join(PROJECT_DIR, "andrea_scout.py")
     try:
         proc = await asyncio.create_subprocess_exec(
             venv_python, scout_script,
@@ -351,38 +340,38 @@ async def _run_team_a_scout(bot, notify_chat_id: int | None = None) -> None:
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
         output = stdout.decode().strip()
-        log.info("Team A scout finished (rc=%d)", proc.returncode)
+        log.info("Andrea scout finished (rc=%d)", proc.returncode)
         if proc.returncode != 0 and notify_chat_id:
             await bot.send_message(
                 chat_id=notify_chat_id,
-                text=f"⚠️ Team A Scout failed (rc={proc.returncode}):\n<pre>{output[-800:]}</pre>",
+                text=f"⚠️ Andrea Scout failed (rc={proc.returncode}):\n<pre>{output[-800:]}</pre>",
                 parse_mode="HTML",
             )
         elif notify_chat_id:
             await bot.send_message(
                 chat_id=notify_chat_id,
-                text="✅ Team A Scout ran successfully.",
+                text="✅ Andrea Scout ran successfully.",
             )
     except asyncio.TimeoutError:
-        log.warning("Team A Scout timed out (300s)")
+        log.warning("Andrea Scout timed out (300s)")
         if notify_chat_id:
-            await bot.send_message(chat_id=notify_chat_id, text="⚠️ Team A Scout timed out.")
+            await bot.send_message(chat_id=notify_chat_id, text="⚠️ Andrea Scout timed out.")
     except Exception as e:
-        log.error("Team A Scout error: %s", e)
+        log.error("Andrea Scout error: %s", e)
         if notify_chat_id:
-            await bot.send_message(chat_id=notify_chat_id, text=f"⚠️ Team A Scout error: {e}")
+            await bot.send_message(chat_id=notify_chat_id, text=f"⚠️ Andrea Scout error: {e}")
 
 
-async def _team_a_scout_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Scheduled daily team_a scout job."""
-    await _run_team_a_scout(context.bot)
+async def _andrea_scout_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Scheduled daily andrea scout job."""
+    await _run_andrea_scout(context.bot)
 
 
-async def _team_a_sync_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Every 3 days: ping Owner in DM with a structured sync prompt."""
+async def _andrea_sync_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Every 3 days: ping Bernard in DM with a structured sync prompt."""
     hkt = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
     msg = (
-        f"<b>🔄 Team A Scout — 3-Day Sync</b>  {hkt}\n\n"
+        f"<b>🔄 Andrea Scout — 3-Day Sync</b>  {hkt}\n\n"
         "Time to review the last 3 days of app digests.\n\n"
         "<b>Quick questions:</b>\n"
         "1. Any idea that stood out? (worth prototyping?)\n"

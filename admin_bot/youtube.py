@@ -157,7 +157,7 @@ async def cmd_yt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Step 2: Fall back to yt-dlp + Groq Whisper
     if not transcript:
         await status_msg.edit_text("No transcript found. Downloading audio for transcription...")
-        transcript = await loop.run_in_executor(None, _download_and_transcribe, url)
+        transcript = await loop.run_in_executor(None, _download_and_transcribe, f"https://youtu.be/{video_id}")
         method = "audio transcription (Groq Whisper)"
 
     if not transcript:

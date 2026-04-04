@@ -18,8 +18,8 @@ echo "[$(date)] Found $FILE_COUNT old JSONL files to process"
 
 # Read current memory index for cross-check
 MEMORY_INDEX=""
-if [ -f ~/telegram-claude-bot-template/memory/MEMORY.md ]; then
-    MEMORY_INDEX=$(cat ~/telegram-claude-bot-template/memory/MEMORY.md)
+if [ -f ~/telegram-claude-bot/memory/MEMORY.md ]; then
+    MEMORY_INDEX=$(cat ~/telegram-claude-bot/memory/MEMORY.md)
 fi
 
 SUMMARY="/tmp/jsonl_extract_$(date +%Y%m%d).txt"
@@ -81,7 +81,7 @@ EXTRACT these specific types of information ONLY if NOT already in memory:
 7. Config/deployment changes
 
 For each finding:
-- Cross-check against ~/telegram-claude-bot-template/memory/ files
+- Cross-check against ~/telegram-claude-bot/memory/ files
 - Skip if already documented
 - Save genuinely new findings to appropriate memory files
 - Use standard frontmatter format (name, description, type)
@@ -105,7 +105,7 @@ echo "[$(date)] Cleanup done: deleted $DELETED files"
 DOW=$(date +%u)  # 1=Mon, 7=Sun
 if [ "$DOW" = "7" ]; then
     echo "[$(date)] Running weekly stale memory check..."
-    STALE_PROMPT="Read all memory files in ~/telegram-claude-bot-template/memory/. Then check:
+    STALE_PROMPT="Read all memory files in ~/telegram-claude-bot/memory/. Then check:
 1) Cron schedules: run crontab -l and compare against any schedule mentioned in memory files
 2) File paths: check if referenced files/scripts still exist
 3) Process references: check if mentioned services/bots are still in start_all.sh or systemd

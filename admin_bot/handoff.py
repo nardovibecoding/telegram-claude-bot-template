@@ -5,23 +5,6 @@ Agent handoff context — file-based state sharing between team agents.
 
 Agents save their output after each run. Other agents on the same team
 see that context prepended to their prompt. 7-day TTL, 4000 char cap.
-
-Usage:
-    # In your team config, map domains to (team, role):
-    TEAM_DOMAINS = {
-        "team_a:scout": ("team_a", "scout"),
-        "team_a:builder": ("team_a", "builder"),
-        ...
-    }
-
-    # Save after agent produces output:
-    save_handoff("team_a", "scout", result_text)
-
-    # Load before sending prompt to agent:
-    handoffs = load_handoffs("team_a", exclude_role="builder")
-
-    # Clear on phase reset:
-    clear_handoffs("team_a")
 """
 
 import json
@@ -38,13 +21,16 @@ HANDOFF_DIR = Path(PROJECT_DIR) / ".handoffs"
 MAX_CONTENT_LEN = 4000
 TTL_SECONDS = 7 * 24 * 3600  # 7 days
 
-# Map domain → (team, role) for lookup.
-# Add your own teams here (e.g. "team_b:scout": ("team_b", "scout")).
+# Map domain → (team, role) for lookup
 TEAM_DOMAINS = {
-    "team_a:scout": ("team_a", "scout"),
-    "team_a:builder": ("team_a", "builder"),
-    "team_a:growth": ("team_a", "growth"),
-    "team_a:critic": ("team_a", "critic"),
+    "andrea:scout": ("andrea", "scout"),
+    "andrea:builder": ("andrea", "builder"),
+    "andrea:growth": ("andrea", "growth"),
+    "andrea:critic": ("andrea", "critic"),
+    "bella:scout": ("bella", "scout"),
+    "bella:builder": ("bella", "builder"),
+    "bella:growth": ("bella", "growth"),
+    "bella:critic": ("bella", "critic"),
 }
 
 

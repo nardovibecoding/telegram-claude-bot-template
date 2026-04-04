@@ -87,9 +87,9 @@ class TestDocId(unittest.TestCase):
 
 class TestExtractProperNouns(unittest.TestCase):
     def test_english_proper_noun(self):
-        result = _extract_proper_nouns("Alice lives in London")
-        self.assertIn("alice", result)
-        self.assertIn("london", result)
+        result = _extract_proper_nouns("Bernard lives in Helsinki")
+        self.assertIn("bernard", result)
+        self.assertIn("helsinki", result)
 
     def test_filters_stopwords(self):
         result = _extract_proper_nouns("The quick brown fox")
@@ -112,8 +112,8 @@ class TestExtractProperNouns(unittest.TestCase):
         self.assertIn("上海市", result)
 
     def test_at_handles(self):
-        result = _extract_proper_nouns("Follow @example_user on X")
-        self.assertIn("@example_user", result)
+        result = _extract_proper_nouns("Follow @<github-user> on X")
+        self.assertIn("@<github-user>", result)
 
     def test_empty_string(self):
         result = _extract_proper_nouns("")
@@ -195,10 +195,10 @@ class TestExpandQuery(unittest.TestCase):
         from unittest.mock import MagicMock
         client = MagicMock()
         client.chat.completions.create.return_value.choices[0].message.content = (
-            "What is Alice's job?\nWhat does Alice do for work?"
+            "What is Bernard's job?\nWhat does Bernard do for work?"
         )
         mgr = self._make_manager(client)
-        result = mgr._expand_query("Alice job")
+        result = mgr._expand_query("Bernard job")
         self.assertLessEqual(len(result), 2)
         self.assertEqual(len(result), 2)
 

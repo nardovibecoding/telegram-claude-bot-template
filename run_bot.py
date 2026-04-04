@@ -4,5 +4,5 @@ import sys
 from bot_base import run_persona
 
 if __name__ == "__main__":
-    persona_id = sys.argv[1] if len(sys.argv) > 1 else "bot1"
+    persona_id = sys.argv[1] if len(sys.argv) > 1 else "daliu"
     run_persona(persona_id)

@@ -83,7 +83,7 @@ async def process_after_response(
         # Build extraction prompt — add preference task if correction detected
         pref_instruction = (
             "\nPREF: extract one concrete preference rule from this correction "
-            "(e.g. 'Owner prefers X over Y'). Write 'none' if no clear preference."
+            "(e.g. 'Bernard prefers X over Y'). Write 'none' if no clear preference."
             if is_correction else ""
         )
 
@@ -92,7 +92,7 @@ async def process_after_response(
             max_tokens=300,
             system=(
                 "Extract from this conversation.\n"
-                "GOALS: open tasks Owner mentioned that aren't done yet "
+                "GOALS: open tasks Bernard mentioned that aren't done yet "
                 "(max 2, concrete; 'none' if nothing pending).\n"
                 "EPISODE: one-line summary of what happened.\n"
                 "RESOLVED: comma-separated short phrases from the bot reply that "
@@ -107,7 +107,7 @@ async def process_after_response(
             ),
             messages=[{
                 "role": "user",
-                "content": f"Owner: {user_msg[:400]}\nBot: {bot_reply[:400]}"
+                "content": f"Bernard: {user_msg[:400]}\nBot: {bot_reply[:400]}"
             }]
         )
 
@@ -294,7 +294,7 @@ def resolve_goal(goal_id: int) -> bool:
 # ─── Proactive stale goal reminders ────────────────────────────────────────
 
 async def check_stale_goals(bot, chat_id: int, thread_id: int | None) -> None:
-    """Called by scheduler — reminds Owner of goals untouched for 48h."""
+    """Called by scheduler — reminds Bernard of goals untouched for 48h."""
     try:
         conn = sqlite3.connect(DB_PATH)
         cutoff = (datetime.now(HKT) - timedelta(hours=48)).isoformat()

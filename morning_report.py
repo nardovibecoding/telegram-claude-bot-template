@@ -37,8 +37,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 
 HKT = timezone(timedelta(hours=8))
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_ADMIN", "")
-CHAT_ID = int(os.environ.get("PERSONAL_GROUP_ID", "0"))  # PERSONAL_GROUP
-THREAD_ID = int(os.environ.get("HEARTBEAT_THREAD_ID", "0"))
+from admin_bot.config import PERSONAL_GROUP
+CHAT_ID = PERSONAL_GROUP
+THREAD_ID = 152  # Healer/Heartbeat
 HISTORY_FILE = BASE_DIR / ".morning_report_history.json"
 
 
@@ -69,8 +70,8 @@ async def check_bots() -> list[HealthCheck]:
     checks = []
     for name, pattern in [
         ("admin", "admin_bot"),
-        ("bot1", "run_bot.py bot1"),
-        ("bot2", "run_bot.py bot2"),
+        ("daliu", "run_bot.py daliu"),
+        ("sbf", "run_bot.py sbf"),
     ]:
         proc = await asyncio.create_subprocess_exec(
             "pgrep", "-f", pattern,
@@ -102,8 +103,8 @@ async def check_digests() -> list[HealthCheck]:
     yesterday = (datetime.now(HKT) - timedelta(days=1)).strftime("%Y-%m-%d")
 
     flags = {
-        "news(B1)": ".digest_sent_news_bot1",
-        "news(B2)": ".digest_sent_news_bot2",
+        "news(D)": ".digest_sent_news_daliu",
+        "news(S)": ".digest_sent_news_sbf",
         "X:twitter": ".digest_sent_x_twitter",
         "X:xcn": ".digest_sent_x_xcn",
         "X:xai": ".digest_sent_x_xai",
@@ -185,21 +186,7 @@ async def check_cookies() -> list[HealthCheck]:
 
 async def check_services() -> list[HealthCheck]:
     """Check MCP services."""
-    checks = []
-    for name, port in [("xhs_mcp", 18060), ("douyin_mcp", 18070)]:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "curl", "-sf", "--max-time", "5", f"http://localhost:{port}/health",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate()
-            ok = proc.returncode == 0
-            checks.append(HealthCheck(name, "services", ok,
-                                      "" if ok else "not responding"))
-        except Exception:
-            checks.append(HealthCheck(name, "services", False, "check failed"))
-    return checks
+    return []
 
 
 async def check_logs() -> list[HealthCheck]:
@@ -274,7 +261,7 @@ async def auto_fix(issues: list[HealthCheck]) -> list[FixResult]:
             continue
 
         # Bot process down → systemd restart
-        if check.category == "bots" and check.name in ("bot1", "bot2", "admin"):
+        if check.category == "bots" and check.name in ("daliu", "sbf", "admin"):
             try:
                 subprocess.run(
                     ["sudo", "systemctl", "restart", "telegram-bots"],
@@ -300,9 +287,9 @@ async def auto_fix(issues: list[HealthCheck]) -> list[FixResult]:
                 flag.write_text("stale")
                 fixes.append(FixResult("Flagged Twitter cookies for Mac refresh", True))
 
-        # MCP service down → restart
+        # MCP service down → restart (no MCP services currently active)
         if check.category == "services":
-            svc_name = "xhs-mcp" if "xhs" in check.name else "douyin-mcp"
+            svc_name = "unknown"
             try:
                 subprocess.run(
                     ["sudo", "systemctl", "restart", svc_name],
@@ -432,7 +419,7 @@ async def interpret_anomalies(
     remaining = []
     for c in unfixed:
         # Skip if this was fixed by a service restart or cache clear
-        if c.name in ("bot1", "bot2", "admin"):
+        if c.name in ("daliu", "sbf", "admin"):
             if any("Restarted" in f.action for f in ok_fixes):
                 continue
         if c.category == "cookies":

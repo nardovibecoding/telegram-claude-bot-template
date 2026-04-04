@@ -39,16 +39,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_ADMIN", "")
 ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
-PERSONAL_GROUP = int(os.environ.get("PERSONAL_GROUP_ID", "0"))
-PODCAST_THREAD = 158  # 小宇宙 podcast topic
-YOUTUBE_THREAD = 156  # YouTube digest topic
+AI_WORLD_GROUP = -1003892866004
+_CN_THREAD_CACHE = str(BASE_DIR / ".podcast_cn_ai_world_thread_id")
+_EN_THREAD_CACHE = str(BASE_DIR / ".podcast_en_ai_world_thread_id")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 HKT = timezone(timedelta(hours=8))
 RSSHUB_BASE = "http://localhost:1200"
 SENT_FLAG_CN = str(BASE_DIR / ".podcast_digest_sent")
 SENT_FLAG_EN = str(BASE_DIR / ".podcast_en_digest_sent")
 CACHE_FILE = str(BASE_DIR / ".podcast_cache.json")
-EN_PODCAST_THREAD = 157  # English podcast topic
+
+
+async def _get_podcast_thread(bot, en_mode: bool) -> int:
+    """Return AI World podcast thread, creating it on first run."""
+    cache = _EN_THREAD_CACHE if en_mode else _CN_THREAD_CACHE
+    if os.path.exists(cache):
+        with open(cache) as f:
+            return int(f.read().strip())
+    name = "🎙 Podcasts" if en_mode else "🎙 小宇宙"
+    topic = await bot.create_forum_topic(chat_id=AI_WORLD_GROUP, name=name)
+    tid = topic.message_thread_id
+    with open(cache, "w") as f:
+        f.write(str(tid))
+    return tid
 
 # 小宇宙 podcasts (Chinese)
 CN_PODCASTS = {
@@ -137,7 +150,8 @@ async def _download_audio(url):
 
                 encoded = tmp.name.replace(".mp3", "_enc.mp3")
                 try:
-                    proc = subprocess.run(
+                    proc = await asyncio.to_thread(
+                        subprocess.run,
                         [ffmpeg_bin, "-i", tmp.name, "-ac", "1", "-b:a", "24k",
                          "-y", encoded],
                         capture_output=True, timeout=180,
@@ -356,7 +370,6 @@ async def main():
             specific_id = arg
 
     sent_flag = SENT_FLAG_EN if en_mode else SENT_FLAG_CN
-    thread_id = EN_PODCAST_THREAD if en_mode else PODCAST_THREAD
 
     # Check if already ran today
     if not specific_id:
@@ -458,6 +471,7 @@ async def main():
     if BOT_TOKEN:
         from telegram import Bot
         bot = Bot(token=BOT_TOKEN)
+        thread_id = await _get_podcast_thread(bot, en_mode)
 
         header = f"🎙 <b>Podcast Digest — {today}</b>\n\n"
         parts = [header]
@@ -474,7 +488,7 @@ async def main():
 
         # Send to correct thread based on mode
         send_kwargs = {
-            "chat_id": PERSONAL_GROUP,
+            "chat_id": AI_WORLD_GROUP,
             "message_thread_id": thread_id,
             "parse_mode": "HTML",
             "disable_web_page_preview": True,

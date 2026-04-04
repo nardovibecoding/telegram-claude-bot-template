@@ -7,7 +7,7 @@ Fallback order (chat_completion):
   2. Cerebras llama-3.3-70b  (fastest inference)
   3. Groq llama-3.3-70b      (free tier fallback)
   4. DeepSeek deepseek-chat   (free tier fallback)
-  5. Gemini 2.0 Flash         (free tier fallback)
+  5. Gemini 2.5 Flash         (free tier fallback)
 
 Parallel cross-check (chat_completion_multi / cross_check):
   All 6 providers in parallel: MiniMax, Cerebras, DeepSeek, Gemini, Kimi K2, Qwen3
@@ -62,10 +62,10 @@ PROVIDERS = {
         "model": "deepseek-chat",
     },
     "gemini": {
-        "name": "Gemini-2.0-Flash",
+        "name": "Gemini-2.5-Flash",
         "api_key_env": "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-2.5-flash",
     },
     "kimi": {
         "name": "Kimi-for-Coding",
@@ -83,7 +83,7 @@ PROVIDERS = {
 }
 
 # Fallback chain order for chat_completion (single-model path)
-_FALLBACK_CHAIN = ["kimi", "minimax", "cerebras", "deepseek", "gemini"]
+_FALLBACK_CHAIN = ["qwen", "kimi", "minimax", "cerebras", "deepseek", "gemini"]
 
 # Errors that trigger immediate fallback (no retry on same model)
 _FATAL_PATTERNS = [
@@ -143,13 +143,23 @@ def _get_client(provider_key: str, timeout: int = 30):
         logger.warning("Skipping %s: no API key (%s)", cfg["name"], cfg["api_key_env"])
         return None, None
 
-    default_headers: dict[str, str] = cfg.get("headers") or {}
-    client = OpenAI(
+    extra_headers = cfg.get("headers") or {}
+    kwargs = dict(
         api_key=api_key,
         base_url=cfg["base_url"],
         timeout=timeout,
-        default_headers=default_headers,
     )
+    if extra_headers:
+        import httpx
+        _h = extra_headers.copy()
+
+        def _inject(request, _h=_h):
+            request.headers.update(_h)
+
+        kwargs["http_client"] = httpx.Client(
+            event_hooks={"request": [_inject]},
+        )
+    client = OpenAI(**kwargs)
     return client, cfg
 
 
@@ -272,7 +282,11 @@ def _call_single_model(
             messages=messages,
             max_tokens=max_tokens,
         )
-        text = resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        text = msg.content or ""
+        # Reasoning models (e.g. kimi-for-coding) put answer in reasoning_content
+        if not text:
+            text = getattr(msg, "reasoning_content", "") or ""
         text = _strip_think(text)
         logger.info("Multi-LLM success: %s (%d chars)", cfg["name"], len(text))
         return text, None
@@ -486,3 +500,121 @@ async def cross_check(
         "consensus_score": consensus_score,
         "disagreements": disagreements,
     }
+
+
+# ── Gemini video analysis ─────────────────────────────────────────────────────
+
+def gemini_video_analysis(video_path_or_url: str, prompt: str | None = None) -> str:
+    """Analyze a video file or URL using Gemini 2.5 Flash native video API.
+
+    Accepts a local file path or any URL supported by yt-dlp (X/Twitter, YouTube, etc.).
+    Returns a text description/analysis of the video content.
+    """
+    import hashlib
+    import mimetypes
+    import subprocess
+    import time
+    import requests as _requests
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return "⚠️ GEMINI_API_KEY not set"
+
+    if prompt is None:
+        prompt = (
+            "Watch this video carefully. Describe:\n"
+            "1. What product or feature is being demonstrated\n"
+            "2. Key UX interactions and flows\n"
+            "3. Technical stack if visible\n"
+            "4. Whether this is clonable and suggested approach\n"
+            "Be specific and concise."
+        )
+
+    # Step 1: If URL, download with yt-dlp
+    video_path = video_path_or_url
+    tmp_file = None
+    if video_path_or_url.startswith("http"):
+        url_hash = hashlib.md5(video_path_or_url.encode()).hexdigest()[:8]
+        tmp_file = f"/tmp/watch_video_{url_hash}.mp4"
+        try:
+            subprocess.run(
+                ["yt-dlp", "-o", f"/tmp/watch_{url_hash}.%(ext)s",
+                 "--merge-output-format", "mp4",
+                 "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]",
+                 "--no-playlist", video_path_or_url],
+                check=True, capture_output=True, timeout=120,
+            )
+            # yt-dlp may produce .mp4 or .mkv — find whichever was created
+            import glob as _glob
+            matches = _glob.glob(f"/tmp/watch_{url_hash}.*")
+            if not matches:
+                return "⚠️ yt-dlp: download succeeded but output file not found"
+            video_path = matches[0]
+            tmp_file = video_path
+        except Exception as e:
+            return f"⚠️ yt-dlp download failed: {e}"
+
+    if not os.path.exists(video_path):
+        return f"⚠️ Video file not found: {video_path}"
+
+    mime_type = mimetypes.guess_type(video_path)[0] or "video/mp4"
+    file_size = os.path.getsize(video_path)
+
+    # Step 2: Upload via Gemini Files API
+    upload_url = f"https://generativelanguage.googleapis.com/upload/v1beta/files?key={api_key}"
+    headers_init = {
+        "X-Goog-Upload-Protocol": "resumable",
+        "X-Goog-Upload-Command": "start",
+        "X-Goog-Upload-Header-Content-Length": str(file_size),
+        "X-Goog-Upload-Header-Content-Type": mime_type,
+        "Content-Type": "application/json",
+    }
+    try:
+        r = _requests.post(upload_url, headers=headers_init,
+                           json={"file": {"display_name": os.path.basename(video_path)}},
+                           timeout=30)
+        r.raise_for_status()
+        resumable_uri = r.headers.get("X-Goog-Upload-URL")
+        if not resumable_uri:
+            return "⚠️ Gemini upload: no resumable URI returned"
+
+        # Upload file bytes
+        with open(video_path, "rb") as f:
+            video_bytes = f.read()
+        r2 = _requests.post(resumable_uri, headers={
+            "Content-Length": str(file_size),
+            "X-Goog-Upload-Offset": "0",
+            "X-Goog-Upload-Command": "upload, finalize",
+        }, data=video_bytes, timeout=300)
+        r2.raise_for_status()
+        file_uri = r2.json().get("file", {}).get("uri", "")
+        if not file_uri:
+            return "⚠️ Gemini upload: no file URI in response"
+
+        # Step 3: Wait for file to be ACTIVE
+        status_url = f"https://generativelanguage.googleapis.com/v1beta/{file_uri.split('/')[-2]}/{file_uri.split('/')[-1]}?key={api_key}"
+        for _ in range(20):
+            sr = _requests.get(status_url, timeout=10)
+            state = sr.json().get("state", "")
+            if state == "ACTIVE":
+                break
+            time.sleep(3)
+        else:
+            return "⚠️ Gemini file processing timed out"
+
+        # Step 4: Generate content
+        gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        payload = {"contents": [{"parts": [
+            {"file_data": {"mime_type": mime_type, "file_uri": file_uri}},
+            {"text": prompt},
+        ]}]}
+        gr = _requests.post(gen_url, json=payload, timeout=120)
+        gr.raise_for_status()
+        candidates = gr.json().get("candidates", [])
+        if not candidates:
+            return "⚠️ Gemini returned no candidates"
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return "".join(p.get("text", "") for p in parts).strip()
+
+    except _requests.RequestException as e:
+        return f"⚠️ Gemini API error: {e}"

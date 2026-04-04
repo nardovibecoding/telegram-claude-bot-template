@@ -7,12 +7,53 @@ import os
 import shutil
 import time
 
-BASE = os.path.expanduser("~/telegram-claude-bot-template")
+BASE = os.path.expanduser("~/telegram-claude-bot")
 now = time.time()
 H12 = 43200
 H48 = 172800
 D7 = 604800
 D30 = 2592000
+
+
+# -- PROTECTED: these files must NEVER be deleted by this script -------------
+# Add persistent config/state files here. clear_if_stale() will refuse to
+# delete them even if accidentally added to a TTL list.
+PROTECTED = {
+    # -- Digest routing -------------------------------------------
+    "topic_cache.json",
+    # -- Subscribers (created on first /subscribe) ----------------
+    "subscribers_daliu.json",   "subscribers_sbf.json",
+    "subscribers_reddit.json",  "subscribers_twitter.json",
+    "subscribers_xcn.json",     "subscribers_xai.json",
+    "subscribers_xniche.json",
+    # -- Persona configs ------------------------------------------
+    "personas/daliu.json",      "personas/sbf.json",
+    "personas/reddit.json",     "personas/twitter.json",
+    "personas/xcn.json",        "personas/xai.json",
+    "personas/xniche.json",
+    # -- Bot state ------------------------------------------------
+    "evolution_database.json",
+    "skill_library.json",
+    "claude_sessions.json",
+    "edwin_sessions.json",
+    "father_config.json",
+    "father_reminders.json",
+    "edwin_memory/reminders.json",
+    # -- Curation / learned data ----------------------------------
+    "x_votes.json",
+    "x_list.json",
+    "xlist_config.json",
+    "domain_groups.json",
+    "outreach/template_weights.json",
+    # -- Auth / credentials ---------------------------------------
+    "twitter_cookies.json",
+    "youtube_cookies.txt",
+    "gmail_credentials.json",
+    "gmail_token.json",
+    # -- System config --------------------------------------------
+    "hooks/platform_filter.json",
+    "luma_profile.json",
+}
 
 
 def age_h(path):
@@ -23,6 +64,9 @@ def age_h(path):
 def clear_if_stale(filename, max_age):
     """Delete file if older than max_age seconds."""
     p = os.path.join(BASE, filename)
+    if filename in PROTECTED:
+        print(f"SKIP (protected): {filename}")
+        return
     if os.path.exists(p) and now - os.path.getmtime(p) > max_age:
         os.unlink(p)
         print(f"Cleared {filename} ({age_h(p):.0f}h old)" if os.path.exists(p) else f"Cleared {filename}")
@@ -61,19 +105,21 @@ def trim_json_dict(filename, max_entries):
 for f in [".reddit_cache.json", ".xcurate_prefetch.json", ".china_trends_cache.json",
           ".youtube_cache.json", ".podcast_cache.json",
           ".ai_digest_cache.json", ".xhs_digest_cache.json", ".douyin_digest_cache.json",
-          "topic_cache.json"]:
+          ]:
     clear_if_stale(f, H12)
 
 # ── Stale state files (48h TTL) ──────────────────────────
-for f in [".pending_mutations.json", ".ai_digest_items.json", ".team_a_scout_seen.json"]:
+for f in [".pending_mutations.json"]:
     clear_if_stale(f, H48)
 
 # ── Old content caches (7d TTL) ──────────────────────────
-for f in ["digest_content_cache.json", "ab_test_results.json", ".morning_report_history.json"]:
+for f in ["digest_content_cache.json", ".morning_report_history.json"]:
     clear_if_stale(f, D7)
 
 # ── Unbounded history — trim, don't delete ───────────────
 trim_json_list(".fetch_watchdog_history.json", 100)
+trim_json_list(".andrea_scout_seen.json", 500)  # dedup list — trim, 7d window kept by mtime guard
+trim_json_list("ab_test_results.json", 500)  # accumulated eval data — trim, never delete
 trim_json_list(".healer_history.json", 100)
 trim_json_dict(".command_usage.json", 200)
 trim_json_dict(".healer_alerted.json", 50)

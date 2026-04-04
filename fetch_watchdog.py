@@ -3,7 +3,7 @@
 Fetch Watchdog — pre-digest health probe + auto-recovery + failure tracking.
 
 Runs 30 min before digest time. Tests all sources, tracks failure history,
-auto-fixes common issues, alerts admin only when human intervention needed.
+auto-fixes common issues, alerts Bernard only when human intervention needed.
 
 Can also run standalone: python fetch_watchdog.py [--check] [--fix] [--report]
 """
@@ -89,12 +89,21 @@ async def _probe_rss(session: aiohttp.ClientSession, name: str, url: str) -> Pro
     t0 = time.monotonic()
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            if resp.status != 200:
+                ms = int((time.monotonic() - t0) * 1000)
+                return ProbeResult(
+                    name, "rss", False, 0,
+                    f"HTTP {resp.status}", ms,
+                )
             text = await resp.text()
         feed = feedparser.parse(text)
         count = len(feed.entries)
         ms = int((time.monotonic() - t0) * 1000)
         ok = count >= RSS_MIN_ARTICLES
-        return ProbeResult(name, "rss", ok, count, "" if ok else f"0 articles", ms)
+        return ProbeResult(
+            name, "rss", ok, count,
+            "" if ok else "0 articles", ms,
+        )
     except Exception as e:
         ms = int((time.monotonic() - t0) * 1000)
         return ProbeResult(name, "rss", False, 0, str(e)[:120], ms)
@@ -151,7 +160,7 @@ async def _probe_reddit() -> list[ProbeResult]:
 
     # Probe 1: CF Worker proxy
     t0 = time.monotonic()
-    proxy_url = os.environ.get("REDDIT_PROXY_URL", "")
+    proxy_url = os.environ.get("REDDIT_PROXY_URL", "https://reddit-proxy.okaybernard-6fe.workers.dev")
     try:
         r = requests.get(
             f"{proxy_url}/?sub=personalfinance&sort=top&t=day&limit=5",
@@ -199,8 +208,7 @@ async def _probe_twitter_cookies() -> ProbeResult:
     try:
         if not cookie_file.exists():
             return ProbeResult("Twitter Cookies", "twitter", False, 0, "file missing", 0)
-        with open(cookie_file) as f:
-            cookies = json.load(f)
+        cookies = await asyncio.to_thread(json.loads, cookie_file.read_bytes())
         has_auth = isinstance(cookies, dict) and "auth_token" in cookies and "ct0" in cookies
         age_hours = (time.time() - cookie_file.stat().st_mtime) / 3600
         ms = int((time.monotonic() - t0) * 1000)
@@ -586,7 +594,7 @@ async def _probe_bot_processes() -> list[ProbeResult]:
         results.append(ProbeResult('systemd service', 'process', False, 0, str(e)[:80], 0))
 
     # Check individual bot processes
-    for name, pattern in [('admin_bot', 'admin_bot'), ('bot1', 'run_bot.py bot1'), ('bot2', 'run_bot.py bot2')]:
+    for name, pattern in [('admin_bot', 'admin_bot'), ('daliu', 'run_bot.py daliu'), ('sbf', 'run_bot.py sbf')]:
         try:
             r = subprocess.run(['pgrep', '-f', pattern], capture_output=True, timeout=5)
             ok = r.returncode == 0
@@ -608,8 +616,8 @@ async def _probe_cron_jobs() -> list[ProbeResult]:
     # Jobs with expected run time (HKT) and log file
     jobs = [
         ("X Digest", 11, "/tmp/xdigest.log"),
-        ("Bot1 Digest", 12, "/tmp/digest_bot1.log"),
-        ("Bot2 Digest", 13, "/tmp/digest_bot2.log"),
+        ("Daliu News", 12, "/tmp/digest_daliu.log"),
+        ("SBF Crypto", 13, "/tmp/digest_sbf.log"),
         ("Reddit Digest", 14, "/tmp/reddit_digest.log"),
         ("Evolution Digest", 12, "/tmp/ai_digest.log"),
         ("China Trends", 14, "/tmp/china_trends.log"),

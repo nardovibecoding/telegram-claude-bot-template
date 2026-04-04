@@ -159,8 +159,8 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "x_xcn":      (".digest_sent_x_xcn",         3,  0),
         "x_xai":      (".digest_sent_x_xai",         3,  0),
         "x_xniche":   (".digest_sent_x_xniche",      3,  0),
-        "news_bot1": (".digest_sent_news_bot1",     3, 30),
-        "news_bot2":   (".digest_sent_news_bot2",       5,  0),
+        "news_daliu": (".digest_sent_news_daliu",     3, 30),
+        "news_sbf":   (".digest_sent_news_sbf",       5,  0),
         "reddit":     (".digest_sent_reddit_reddit",  5, 30),
     }
     sent = []
@@ -231,9 +231,9 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Restart bot1 or bot2 bot by killing their process (start_all.sh auto-restarts)."""
+    """Restart daliu or sbf bot by killing their process (start_all.sh auto-restarts)."""
     bot_name = update.message.text.split("_", 1)[1] if "_" in update.message.text else ""
-    if bot_name not in ("bot1", "bot2"):
+    if bot_name not in ("daliu", "sbf"):
         return
     import signal
     proc = await asyncio.create_subprocess_exec(
@@ -248,9 +248,9 @@ async def cmd_restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 os.kill(int(pid), signal.SIGTERM)
             except Exception:
                 pass
-        await update.message.reply_text(f"🔄 {bot_name} killed (PID {pids}). Restarting in 5s.")
+        await update.message.reply_text(f"🔄 {bot_name} killed (PID {pids}). 5 秒內重啟。")
     else:
-        await update.message.reply_text(f"⚠️ {bot_name} process not found.")
+        await update.message.reply_text(f"⚠️ {bot_name} 冇搵到進程。")
 
 
 @admin_only
@@ -341,13 +341,13 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Trigger or rerun a digest: /digest <bot> or /digest rerun <job>"""
     RERUN_JOBS = {
-        "bot1": {
-            "flag": ".digest_sent_news_bot1",
-            "cmd": ["python", "send_digest.py", "bot1"],
+        "daliu": {
+            "flag": ".digest_sent_news_daliu",
+            "cmd": ["python", "send_digest.py", "daliu"],
         },
-        "bot2": {
-            "flag": ".digest_sent_news_bot2",
-            "cmd": ["python", "send_digest.py", "bot2"],
+        "sbf": {
+            "flag": ".digest_sent_news_sbf",
+            "cmd": ["python", "send_digest.py", "sbf"],
         },
         "twitter": {
             "flag": ".digest_sent_x_twitter",
@@ -391,7 +391,7 @@ async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         },
     }
 
-    DIGEST_BOTS = ["bot1", "bot2", "twitter", "xcn", "xai", "xniche", "reddit"]
+    DIGEST_BOTS = ["daliu", "sbf", "twitter", "xcn", "xai", "xniche", "reddit"]
 
     if not context.args:
         await update.message.reply_text(
@@ -563,141 +563,9 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @admin_only
-async def cmd_xhslogin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Generate xiaohongshu QR code for re-login: /xhslogin"""
-    import base64
-    await update.message.reply_text("🟧 Generating xiaohongshu QR code...")
-    try:
-        import aiohttp, json as _json
-        url = "http://localhost:18060/mcp"
-        accept_hdr = {"Accept": "application/json, text/event-stream"}
-
-        async def _mcp_post(session, payload, headers, timeout=30):
-            """Post to MCP, parse SSE or JSON response."""
-            r = await session.post(url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout))
-            ct = r.headers.get("Content-Type", "")
-            sid = r.headers.get("Mcp-Session-Id", "")
-            if "event-stream" in ct:
-                result = None
-                text = await r.text()
-                for line in text.split("\n"):
-                    line = line.strip()
-                    if line.startswith("data:"):
-                        try:
-                            result = _json.loads(line[5:].strip())
-                        except _json.JSONDecodeError:
-                            pass
-                return result, sid
-            elif "json" in ct:
-                return await r.json(), sid
-            else:
-                # Empty or unknown content type (e.g. notifications return 202 with no body)
-                return None, sid
-
-        async with aiohttp.ClientSession() as session:
-            # Initialize
-            _, sid = await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "initialize", "id": 1,
-                 "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                  "clientInfo": {"name": "tg", "version": "1.0"}}}, accept_hdr)
-            headers = {**accept_hdr}
-            if sid:
-                headers["Mcp-Session-Id"] = sid
-            # Notify initialized
-            await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "notifications/initialized",
-                 "params": {}}, headers)
-            # Call tool
-            result, _ = await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "tools/call", "id": 2,
-                 "params": {"name": "get_login_qrcode", "arguments": {}}},
-                headers, timeout=30)
-            content = result["result"]["content"]
-            qr_data = None
-            timeout_str = ""
-            for item in content:
-                if item.get("type") == "text":
-                    # QR data is inside JSON text block
-                    try:
-                        info = _json.loads(item["text"])
-                        img_b64 = info.get("img", "")
-                        timeout_str = info.get("timeout", "")
-                        if img_b64:
-                            if img_b64.startswith("data:"):
-                                img_b64 = img_b64.split(",", 1)[1]
-                            qr_data = base64.b64decode(img_b64)
-                    except (_json.JSONDecodeError, Exception):
-                        pass
-                elif item.get("type") == "image" and item.get("data"):
-                    qr_data = base64.b64decode(item["data"])
-            if qr_data and len(qr_data) > 100:
-                from io import BytesIO
-                qr_file = BytesIO(qr_data)
-                qr_file.name = "xhs_qr.bmp"  # BMP extension forces document mode
-                await update.message.reply_document(document=qr_file,
-                    caption=f"🟧 Scan with 小红书 app ({timeout_str})\n\nThen send /xhscheck")
-            else:
-                await update.message.reply_text("❌ QR code empty — MCP may need restart. Try again.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ XHS login error: {e}")
-
-
-@admin_only
-async def cmd_xhscheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Check xiaohongshu login status after QR scan: /xhscheck"""
-    try:
-        import aiohttp, json as _json
-        url = "http://localhost:18060/mcp"
-        accept_hdr = {"Accept": "application/json, text/event-stream"}
-
-        async def _mcp_post(session, payload, headers, timeout=30):
-            """Post to MCP, parse SSE or JSON response."""
-            r = await session.post(url, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout))
-            ct = r.headers.get("Content-Type", "")
-            sid = r.headers.get("Mcp-Session-Id", "")
-            if "event-stream" in ct:
-                result = None
-                text = await r.text()
-                for line in text.split("\n"):
-                    line = line.strip()
-                    if line.startswith("data:"):
-                        try:
-                            result = _json.loads(line[5:].strip())
-                        except _json.JSONDecodeError:
-                            pass
-                return result, sid
-            elif "json" in ct:
-                return await r.json(), sid
-            else:
-                return None, sid
-
-        async with aiohttp.ClientSession() as session:
-            _, sid = await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "initialize", "id": 1,
-                 "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                  "clientInfo": {"name": "tg", "version": "1.0"}}}, accept_hdr)
-            headers = {**accept_hdr}
-            if sid:
-                headers["Mcp-Session-Id"] = sid
-            await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "notifications/initialized",
-                 "params": {}}, headers)
-            result, _ = await _mcp_post(session,
-                {"jsonrpc": "2.0", "method": "tools/call", "id": 2,
-                 "params": {"name": "check_login_status", "arguments": {}}},
-                headers, timeout=15)
-            text = result["result"]["content"][0]["text"]
-            await update.message.reply_text(f"🟧 {text}")
-    except Exception as e:
-        await update.message.reply_text(f"❌ XHS check error: {e}")
-
-
-@admin_only
 async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Approve Scout research -> unlock Builder/Growth/Critic: /approve"""
-    phase_file = os.path.join(PROJECT_DIR, ".team_a_phase")
+    phase_file = os.path.join(PROJECT_DIR, ".andrea_phase")
     with open(phase_file, "w") as f:
         f.write("approved")
     await update.message.reply_text("🟧 Scout approved — Builder, Growth, and Critic topics are now unlocked.")
@@ -706,7 +574,7 @@ async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def cmd_reset_phase(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lock Builder/Growth/Critic again (back to Scout phase): /resetphase [team]"""
-    phase_file = os.path.join(PROJECT_DIR, ".team_a_phase")
+    phase_file = os.path.join(PROJECT_DIR, ".andrea_phase")
     try:
         os.unlink(phase_file)
     except OSError:
@@ -715,7 +583,7 @@ async def cmd_reset_phase(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Clear handoff context for the team
     from .handoff import clear_handoffs
     args = context.args
-    team = args[0] if args else "team_a"
+    team = args[0] if args else "andrea"
     cleared = clear_handoffs(team)
 
     await update.message.reply_text(
@@ -740,7 +608,7 @@ async def cmd_q(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Register current group as a domain: /domain team_a"""
+    """Register current group as a domain: /domain andrea or /domain bella"""
     if not context.args:
         groups = _load_domain_groups()
         lines = ["Registered domains:"]
@@ -749,8 +617,8 @@ async def cmd_domain(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines) if len(lines) > 1 else "No domains registered.")
         return
     domain = context.args[0].lower()
-    if domain not in ("team_a", "news", "email", "airbnb"):
-        await update.message.reply_text("Valid domains: team_a, news, email, airbnb")
+    if domain not in ("andrea", "bella", "news", "email", "airbnb"):
+        await update.message.reply_text("Valid domains: andrea, bella, news, email, airbnb")
         return
     chat_id = update.effective_chat.id
     groups = _load_domain_groups()
@@ -799,10 +667,10 @@ async def cmd_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def cmd_scout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Manually trigger the Team A Scout: /scout"""
-    from .schedulers import _run_team_a_scout
-    await update.message.reply_text("Running Team A Scout now...")
-    await _run_team_a_scout(context.bot, notify_chat_id=update.effective_chat.id)
+    """Manually trigger the Andrea Scout: /scout"""
+    from .schedulers import _run_andrea_scout
+    await update.message.reply_text("Running Andrea Scout now...")
+    await _run_andrea_scout(context.bot, notify_chat_id=update.effective_chat.id)
 
 
 # ── /health — Instant system health check ────────────────────────────────
@@ -830,21 +698,6 @@ async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append(f"  ✅ {name} (PID {pid_list})")
         else:
             lines.append(f"  ❌ {name} — stopped")
-
-    # MCP services
-    lines.append("\n<b>MCP Services</b>")
-    mcp_services = {"XHS (18060)": 18060, "Douyin (18070)": 18070}
-    for svc_name, port in mcp_services.items():
-        proc = await asyncio.create_subprocess_exec(
-            "bash", "-c", f"ss -tlnp 2>/dev/null | grep -q :{port} || lsof -i :{port} -sTCP:LISTEN >/dev/null 2>&1",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
-        if proc.returncode == 0:
-            lines.append(f"  ✅ {svc_name}")
-        else:
-            lines.append(f"  ❌ {svc_name} — not listening")
 
     # Disk usage
     lines.append("\n<b>Disk</b>")
@@ -923,8 +776,8 @@ async def cmd_cron(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # All known digest jobs with flag file patterns and log files
     jobs = {
-        "news_bot1":   {"flag": ".digest_sent_news_bot1",    "log": "/tmp/start_all.log"},
-        "news_bot2":     {"flag": ".digest_sent_news_bot2",      "log": "/tmp/start_all.log"},
+        "news_daliu":   {"flag": ".digest_sent_news_daliu",    "log": "/tmp/start_all.log"},
+        "news_sbf":     {"flag": ".digest_sent_news_sbf",      "log": "/tmp/start_all.log"},
         "x_twitter":    {"flag": ".digest_sent_x_twitter",     "log": "/tmp/start_all.log"},
         "x_xcn":        {"flag": ".digest_sent_x_xcn",         "log": "/tmp/start_all.log"},
         "x_xai":        {"flag": ".digest_sent_x_xai",         "log": "/tmp/start_all.log"},
@@ -987,13 +840,13 @@ async def cmd_cron(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_rerun(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Re-run a digest job: delete flag file and run the script in background."""
     RERUN_JOBS = {
-        "bot1": {
-            "flag": ".digest_sent_news_bot1",
-            "cmd": ["python", "send_digest.py", "bot1"],
+        "daliu": {
+            "flag": ".digest_sent_news_daliu",
+            "cmd": ["python", "send_digest.py", "daliu"],
         },
-        "bot2": {
-            "flag": ".digest_sent_news_bot2",
-            "cmd": ["python", "send_digest.py", "bot2"],
+        "sbf": {
+            "flag": ".digest_sent_news_sbf",
+            "cmd": ["python", "send_digest.py", "sbf"],
         },
         "twitter": {
             "flag": ".digest_sent_x_twitter",
@@ -1107,8 +960,8 @@ async def _panel_overview_text_and_kb(today_str: str):
 
     # Health summary
     process_patterns = [
-        ("run_bot.py bot1", "Bot1"),
-        ("run_bot.py bot2", "Bot2"),
+        ("run_bot.py daliu", "大劉"),
+        ("run_bot.py sbf", "SBF"),
         ("run_bot.py reddit", "Reddit"),
         ("admin_bot", "Admin"),
     ]
@@ -1131,8 +984,8 @@ async def _panel_overview_text_and_kb(today_str: str):
     x_icon = "✅" if x_sent == 4 else f"{x_sent}/4"
 
     news_sent = any([
-        await _panel_flag_sent(".digest_sent_news_bot1", today_str),
-        await _panel_flag_sent(".digest_sent_news_bot2", today_str),
+        await _panel_flag_sent(".digest_sent_news_daliu", today_str),
+        await _panel_flag_sent(".digest_sent_news_sbf", today_str),
     ])
     news_icon = "✅" if news_sent else "❌"
 
@@ -1187,6 +1040,28 @@ async def _panel_overview_text_and_kb(today_str: str):
     except Exception:
         pass
 
+    # Outreach summary
+    svc_active = False
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "--user", "is-active", "outreach-autoreply",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        svc_out, _ = await proc.communicate()
+        svc_active = svc_out.decode().strip() == "active"
+    except Exception:
+        pass
+    if not svc_active:
+        try:
+            proc2 = await asyncio.create_subprocess_exec(
+                "pgrep", "-f", "auto_reply",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            pgrep_out, _ = await proc2.communicate()
+            svc_active = bool(pgrep_out.decode().strip())
+        except Exception:
+            pass
+
     sep = "─────────"
     text = (
         f"<b>🟧 Panel</b>\n{sep}\n"
@@ -1194,6 +1069,7 @@ async def _panel_overview_text_and_kb(today_str: str):
         f"{sync_line}\n"
         f"📝 Content: {draft_count} draft, {queue_count} queued\n"
         f"⚙️ Config: {_panel_primary_model()}, {persona_count} personas\n"
+        f"📨 Outreach: auto-reply {'ON' if svc_active else 'OFF'}\n"
         f"{sep}"
     )
     kb = InlineKeyboardMarkup([[
@@ -1201,13 +1077,14 @@ async def _panel_overview_text_and_kb(today_str: str):
         InlineKeyboardButton("🔄", callback_data="panel:sync"),
         InlineKeyboardButton("📝", callback_data="panel:content"),
         InlineKeyboardButton("⚙️", callback_data="panel:config"),
+        InlineKeyboardButton("📨", callback_data="panel:outreach"),
     ]])
     return text, kb
 
 
 @admin_only
 async def cmd_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Control panel overview with 4 tabs: Health, Sync, Content, Config."""
+    """Control panel overview with 5 tabs: Health, Sync, Content, Config, Outreach."""
     from datetime import datetime, timezone
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     text, kb = await _panel_overview_text_and_kb(today_str)
@@ -1303,7 +1180,7 @@ async def cmd_homein(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Write to pending_resume.txt for Mac /homein to pick up
     pending_path = os.path.expanduser(
-        os.environ.get("CLAUDE_MEMORY_DIR", "~/.claude/projects/[project-dir]/memory") + "/pending_resume.txt"
+        "~/.claude/projects/-home-bernard/memory/pending_resume.txt"
     )
     os.makedirs(os.path.dirname(pending_path), exist_ok=True)
     with open(pending_path, "w") as f:
@@ -1311,7 +1188,7 @@ async def cmd_homein(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🟧 Session saved for Mac:\n<code>{sid}</code>\n\n"
         f"Domain: {key}\n"
-        f"On your Mac, run: <code>/homein</code>",
+        f"到家後 Mac 行: <code>/homein</code>",
         parse_mode="HTML",
     )
 
@@ -1333,7 +1210,7 @@ async def cmd_homeout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Check for pending session from Mac /homeout
         pending_path = os.path.expanduser(
-            os.environ.get("CLAUDE_MEMORY_DIR", "~/.claude/projects/[project-dir]/memory") + "/pending_resume.txt"
+            "~/.claude/projects/-home-bernard/memory/pending_resume.txt"
         )
         if os.path.exists(pending_path):
             with open(pending_path) as f:
@@ -1354,7 +1231,7 @@ async def cmd_homeout(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "⚠️ No pending session.\n"
                 "<code>/homeout &lt;session_id&gt;</code>\n\n"
-                "Or run /homeout on Mac first.",
+                "Or Mac 行 /homeout 先。",
                 parse_mode="HTML",
             )
         return
@@ -1443,7 +1320,7 @@ async def cmd_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not cron_out:
             proc = await asyncio.create_subprocess_exec(
                 "ssh", "-o", "ConnectTimeout=3",
-                f"{os.getenv('VPS_USER', 'YOUR_VPS_USER')}@{os.getenv('VPS_HOST', 'YOUR_VPS_IP')}",
+                f"{os.getenv('VPS_USER', 'bernard')}@{os.getenv('VPS_HOST', '<vps-ip>')}",
                 "crontab -l 2>/dev/null"
                 " | grep -v '^#' | grep -v '^$'",
                 stdout=asyncio.subprocess.PIPE,
@@ -1805,6 +1682,258 @@ async def cmd_goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+@admin_only
+async def cmd_redteamstart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start the red team test script."""
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c",
+        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
+        "nohup python outreach/red_team_auto.py > /tmp/red_team_results.log 2>&1 & echo $!",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    pid = stdout.decode().strip()
+    await update.message.reply_text(f"Red team (live TG) started (PID: {pid})\n\n~380 attacks via @Nardo03_bot\n/redteamstop to cancel")
+
+
+@admin_only
+async def cmd_redteamstop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop the red team test script."""
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c", "pkill -f 'red_team_auto.py' 2>/dev/null && echo killed || echo not_running",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if "killed" in stdout.decode():
+        await update.message.reply_text("Red team (live) stopped.")
+    else:
+        await update.message.reply_text("Red team not running.")
+
+
+@admin_only
+async def cmd_autoreplyon(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start the auto-reply service."""
+    proc = await asyncio.create_subprocess_exec(
+        "systemctl", "--user", "start", "outreach-autoreply",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+    await update.message.reply_text("Auto-reply ON")
+
+
+@admin_only
+async def cmd_autoreplyoff(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop the auto-reply service."""
+    proc = await asyncio.create_subprocess_exec(
+        "systemctl", "--user", "stop", "outreach-autoreply",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
+    await update.message.reply_text("Auto-reply OFF")
+
+
+@admin_only
+async def cmd_autolist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show all chats with auto-reply enabled (via ...on)."""
+    db_path = os.path.join(PROJECT_DIR, "outreach.db")
+    try:
+        import sqlite3 as _sq
+        conn = _sq.connect(db_path)
+        rows = conn.execute(
+            "SELECT chat_id, updated_at FROM auto_reply_state "
+            "WHERE auto_enabled = 1 ORDER BY updated_at DESC"
+        ).fetchall()
+        conn.close()
+    except Exception as e:
+        await update.message.reply_text(f"❌ DB error: {e}")
+        return
+
+    if not rows:
+        await update.message.reply_text("No chats with auto-reply enabled.\nUse <code>...on</code> inside a DM to activate.", parse_mode="HTML")
+        return
+
+    lines = [f"<b>Auto-reply active ({len(rows)} chats):</b>\n"]
+    for chat_id, updated in rows:
+        lines.append(f"• <code>{chat_id}</code> (since {updated[:16]})")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+@admin_only
+async def cmd_redteameval(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Run the red team evaluator to grade bot responses."""
+    await update.message.reply_text("Starting red team evaluation...\nThis takes ~5 min (LLM grading 40+ batches)")
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c",
+        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
+        "python outreach/red_team_eval.py 2>&1 | tail -30",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await update.message.reply_text("⚠️ Red team eval timed out (10 min)")
+        return
+    output = stdout.decode().strip()
+    if not output:
+        output = stderr.decode().strip() or "No output"
+
+    # Extract TG summary (last few lines) and send
+    lines = output.split("\n")
+    # Find the summary section
+    summary_lines = []
+    in_summary = False
+    for line in lines:
+        if "SUMMARY" in line or "TG Summary" in line:
+            in_summary = True
+        if in_summary:
+            summary_lines.append(line)
+        if len(summary_lines) > 15:
+            break
+
+    if summary_lines:
+        msg = "\n".join(summary_lines)
+    else:
+        # Send last 20 lines as fallback
+        msg = "\n".join(lines[-20:])
+
+    # Truncate to TG message limit
+    if len(msg) > 4000:
+        msg = msg[:4000] + "\n..."
+
+    await update.message.reply_text(
+        f"<b>Red Team Eval Complete</b>\n\n"
+        f"<pre>{html_escape(msg)}</pre>\n\n"
+        f"Full report: /tmp/red_team_report.txt",
+        parse_mode="HTML",
+    )
+
+
+@admin_only
+async def cmd_redteamoffline(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start offline red team test (no Telegram messages, uses LLM directly)."""
+    # Check if already running
+    check = await asyncio.create_subprocess_exec(
+        "pgrep", "-f", "red_team_offline",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await check.communicate()
+    if stdout.decode().strip():
+        await update.message.reply_text("Offline red team already running.")
+        return
+
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c",
+        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
+        "nohup python outreach/red_team_offline.py >> /tmp/red_team_offline.log 2>&1 & echo $!",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    pid = stdout.decode().strip()
+    await update.message.reply_text(
+        f"Offline red team started (PID: {pid})\n\n"
+        f"~380 attacks, ~60 min\n"
+        f"You'll get a TG notification when done.\n\n"
+        f"/redteamofflinestop to cancel"
+    )
+
+
+@admin_only
+async def cmd_redteamofflinestop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop the offline red team test."""
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c", "pkill -f 'red_team_offline.py' 2>/dev/null && echo killed || echo not_running",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if "killed" in stdout.decode():
+        await update.message.reply_text("Offline red team stopped.")
+    else:
+        await update.message.reply_text("Offline red team not running.")
+
+
+@admin_only
+async def cmd_redteamgenerate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate new red team attacks from last test results."""
+    # Check if report exists
+    if not os.path.exists("/tmp/red_team_report.md"):
+        await update.message.reply_text("No report found at /tmp/red_team_report.md\nRun /redteamoffline first.")
+        return
+
+    # Check if already running
+    check = await asyncio.create_subprocess_exec(
+        "pgrep", "-f", "red_team_generate",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await check.communicate()
+    if stdout.decode().strip():
+        await update.message.reply_text("Attack generator already running.")
+        return
+
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c",
+        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
+        "nohup python outreach/red_team_generate.py > /tmp/red_team_generate.log 2>&1 & echo $!",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    pid = stdout.decode().strip()
+    await update.message.reply_text(
+        f"Attack generator started (PID: {pid})\n\n"
+        f"~380 new attacks from last report\n"
+        f"~10 min (19 batches x LLM calls)\n"
+        f"You'll get a TG notification when done.\n\n"
+        f"Output: /tmp/red_team_gen_attacks.py\n"
+        f"Then run: /redteamofflinegen to test them"
+    )
+
+
+@admin_only
+async def cmd_redteamofflinegen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Run offline red team test using generated attacks."""
+    gen_file = "/tmp/red_team_gen_attacks.py"
+    if not os.path.exists(gen_file):
+        await update.message.reply_text(
+            "No generated attacks found at /tmp/red_team_gen_attacks.py\n"
+            "Run /redteamgenerate first."
+        )
+        return
+
+    # Check if already running
+    check = await asyncio.create_subprocess_exec(
+        "pgrep", "-f", "red_team_offline",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await check.communicate()
+    if stdout.decode().strip():
+        await update.message.reply_text("Offline red team already running.")
+        return
+
+    proc = await asyncio.create_subprocess_exec(
+        "bash", "-c",
+        "cd ~/telegram-claude-bot && source venv/bin/activate && source .env && "
+        f"nohup python outreach/red_team_offline.py --attacks {gen_file} >> /tmp/red_team_offline.log 2>&1 & echo $!",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    pid = stdout.decode().strip()
+    await update.message.reply_text(
+        f"Offline red team (generated attacks) started (PID: {pid})\n\n"
+        f"Using attacks from: {gen_file}\n"
+        f"~60 min\n"
+        f"You'll get a TG notification when done.\n\n"
+        f"/redteamofflinestop to cancel"
+    )
 
 
 # ── Background tasks ──────────────────────────────────────────────────────

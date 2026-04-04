@@ -19,7 +19,7 @@ CMD_DESCRIPTIONS = {
     "stop": "Stop current task",
     "model": "Switch AI model",
     "health": "Deep system + source check",
-    "digest": "Run digest (bot1,bot2,twitter,xcn,xai,xniche,reddit)",
+    "digest": "Run digest (daliu,sbf,twitter,xcn,xai,xniche,reddit)",
     "skills": "Claude skills",
     "homein": "Resume from phone",
     "homeout": "Transfer to phone",

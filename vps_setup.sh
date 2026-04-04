@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
-# VPS Setup Script for telegram-claude-bot-template
+# VPS Setup Script for telegram-claude-bot
 # Run as root on a fresh Ubuntu 24.04 server
 set -e
 
@@ -10,22 +10,22 @@ apt update && apt upgrade -y
 echo "=== Step 2: Install Python + dependencies ==="
 apt install -y python3 python3-venv python3-pip git curl
 
-echo "=== Step 3: Create user YOUR_VPS_USER ==="
-if ! id YOUR_VPS_USER &>/dev/null; then
-    adduser --disabled-password --gecos "" YOUR_VPS_USER
-    usermod -aG sudo YOUR_VPS_USER
+echo "=== Step 3: Create user bernard ==="
+if ! id bernard &>/dev/null; then
+    adduser --disabled-password --gecos "" bernard
+    usermod -aG sudo bernard
     # Copy SSH keys from root
-    mkdir -p /home/YOUR_VPS_USER/.ssh
-    cp /root/.ssh/authorized_keys /home/YOUR_VPS_USER/.ssh/
-    chown -R YOUR_VPS_USER:YOUR_VPS_USER /home/YOUR_VPS_USER/.ssh
-    chmod 700 /home/YOUR_VPS_USER/.ssh
-    chmod 600 /home/YOUR_VPS_USER/.ssh/authorized_keys
+    mkdir -p ~/.ssh
+    cp /root/.ssh/authorized_keys ~/.ssh/
+    chown -R bernard:bernard ~/.ssh
+    chmod 700 ~/.ssh
+    chmod 600 ~/.ssh/authorized_keys
     # Allow sudo without password for convenience
-    echo "YOUR_VPS_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/YOUR_VPS_USER
+    echo "bernard ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/bernard
 fi
 
 echo "=== Step 4: Setup project ==="
-PROJECT="/home/YOUR_VPS_USER/telegram-claude-bot-template"
+PROJECT="~/telegram-claude-bot"
 if [ ! -d "$PROJECT" ]; then
     mkdir -p "$PROJECT"
 fi
@@ -47,12 +47,12 @@ Description=Telegram Bots
 After=network.target
 
 [Service]
-User=YOUR_VPS_USER
-WorkingDirectory=/home/YOUR_VPS_USER/telegram-claude-bot-template
+User=bernard
+WorkingDirectory=~/telegram-claude-bot
 ExecStart=/bin/bash start_all.sh
 Restart=always
 RestartSec=10
-Environment=PATH=/home/YOUR_VPS_USER/telegram-claude-bot-template/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=~/telegram-claude-bot/venv/bin:/usr/local/bin:/usr/bin:/bin
 StandardOutput=append:/tmp/start_all.log
 StandardError=append:/tmp/start_all.log
 
@@ -64,13 +64,13 @@ systemctl daemon-reload
 systemctl enable telegram-bots
 
 echo "=== Step 8: Install Claude CLI ==="
-if [ ! -f /home/YOUR_VPS_USER/.local/bin/claude ]; then
-    su - YOUR_VPS_USER -c 'curl -fsSL https://claude.ai/install.sh | sh'
+if [ ! -f ~/.local/bin/claude ]; then
+    su - bernard -c 'curl -fsSL https://claude.ai/install.sh | sh'
 fi
 
 echo "=== Step 9: Fix ownership ==="
-chown -R YOUR_VPS_USER:YOUR_VPS_USER "$PROJECT"
-chown -R YOUR_VPS_USER:YOUR_VPS_USER /home/YOUR_VPS_USER/.local 2>/dev/null || true
+chown -R bernard:bernard "$PROJECT"
+chown -R bernard:bernard ~/.local 2>/dev/null || true
 
 echo ""
 echo "========================================="
@@ -79,7 +79,7 @@ echo "========================================="
 echo ""
 echo "Remaining manual steps:"
 echo "  1. Upload project files (rsync from Mac)"
-echo "  2. Install Python packages: cd ~/telegram-claude-bot-template && source venv/bin/activate && pip install -r requirements.txt"
+echo "  2. Install Python packages: cd ~/telegram-claude-bot && source venv/bin/activate && pip install -r requirements.txt"
 echo "  3. Install Playwright: playwright install chromium"
 echo "  4. Login to Claude: claude login"
 echo "  5. Start bots: sudo systemctl start telegram-bots"

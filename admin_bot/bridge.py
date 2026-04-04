@@ -253,6 +253,11 @@ async def _run_sdk_task(
         while True:
             await asyncio.sleep(2)
             tick += 1
+            # Keep Telegram typing indicator alive (expires after ~5s)
+            try:
+                await bot.send_chat_action(chat_id, "typing")
+            except Exception:
+                pass
             idle = _time.monotonic() - _last_step_time[0]
             elapsed = _time.monotonic() - start_ts
             pct = min(elapsed / 900 * 100, 100.0)
@@ -581,9 +586,9 @@ async def _run_sdk_task(
         result = _clean_result(result) if result else ""
 
         # Save handoff context for team agents
-        from .handoff import TEAM_DOMAINS as _TD2, save_handoff
-        if domain in _TD2 and result:
-            _team, _role = _TD2[domain]
+        from .handoff import TEAM_DOMAINS, save_handoff
+        if domain in TEAM_DOMAINS and result:
+            _team, _role = TEAM_DOMAINS[domain]
             save_handoff(_team, _role, result)
 
         # Background mode: always send as NEW message for push notification
@@ -622,7 +627,7 @@ async def _run_sdk_task(
             )
 
         # Check for uncommitted code changes
-        _code_domains = {"news", "team_a:builder"}
+        _code_domains = {"news", "andrea:builder", "bella:builder"}
         if not _failed and domain in _code_domains:
             try:
                 proc_diff = await asyncio.create_subprocess_exec(
@@ -635,7 +640,7 @@ async def _run_sdk_task(
                 changed_files = [l[3:] for l in stdout.decode().strip().splitlines() if l.strip()]
                 py_changed = [f for f in changed_files if f.endswith('.py')]
                 if py_changed:
-                    if domain == "team_a:builder":
+                    if domain in ("andrea:builder", "bella:builder"):
                         await _auto_review_loop(msg, context, chat_id, reply_thread, py_changed)
                     else:
                         files_str = ", ".join(py_changed[:5])
@@ -849,14 +854,14 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info("claude_bridge: no domain for chat_id=%s, ignoring", chat_id)
         return
 
-    # team_a workflow gate
-    _TEAM_A_PHASE_FILE = os.path.join(PROJECT_DIR, ".team_a_phase")
-    _GATED_DOMAINS = {"team_a:builder", "team_a:growth", "team_a:critic"}
+    # Andrea workflow gate
+    _ANDREA_PHASE_FILE = os.path.join(PROJECT_DIR, ".andrea_phase")
+    _GATED_DOMAINS = {"andrea:builder", "andrea:growth", "andrea:critic"}
     if domain in _GATED_DOMAINS:
         phase = ""
         try:
-            if os.path.exists(_TEAM_A_PHASE_FILE):
-                with open(_TEAM_A_PHASE_FILE) as f:
+            if os.path.exists(_ANDREA_PHASE_FILE):
+                with open(_ANDREA_PHASE_FILE) as f:
                     phase = f.read().strip()
         except Exception:
             pass
@@ -983,8 +988,10 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
         cwd = PROJECT_DIR
-        # To use a different working directory for a team's builder agent,
-        # add a check here: if domain == "my_team": cwd = "/path/to/project"
+        if domain == "bella":
+            bella_dir = os.path.expanduser("~/face-analysis-app")
+            if os.path.isdir(bella_dir):
+                cwd = bella_dir
 
         _retry_key = f"retry:{chat_id}:{thread_id or 0}"
         context.bot_data[_retry_key] = prompt

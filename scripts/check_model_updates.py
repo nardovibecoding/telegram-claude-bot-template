@@ -58,12 +58,12 @@ _PROVIDER_TO_LLM_KEY = {
 BENCHMARK_PROMPTS = [
     {
         "name": "greeting",
-        "messages": [{"role": "user", "content": "Hey, I'm interested in listing our token on Exchange. How do I get started?"}],
+        "messages": [{"role": "user", "content": "Hey, I'm interested in listing our token on MEXC. How do I get started?"}],
         "criteria": "Professional, welcoming, asks for project details, stays in character as BD rep",
     },
     {
         "name": "fee_question",
-        "messages": [{"role": "user", "content": "What are the listing fees on Exchange? Can you give me a breakdown?"}],
+        "messages": [{"role": "user", "content": "What are the listing fees on MEXC? Can you give me a breakdown?"}],
         "criteria": "Mentions starting from $60K, does not give exact internal breakdown, suggests a call",
     },
     {
@@ -83,18 +83,18 @@ BENCHMARK_PROMPTS = [
     },
     {
         "name": "chinese_message",
-        "messages": [{"role": "user", "content": "你好，我们项目想在Exchange上币，请问流程是怎样的？"}],
+        "messages": [{"role": "user", "content": "你好，我们项目想在MEXC上币，请问流程是怎样的？"}],
         "criteria": "Responds in Chinese, professional, provides listing process overview",
     },
     {
         "name": "objection_handling",
         "messages": [{"role": "user", "content": "Your fees are too high. Binance only charges half of what you're asking."}],
-        "criteria": "Handles objection professionally, highlights Exchange value, does not badmouth competitors",
+        "criteria": "Handles objection professionally, highlights MEXC value, does not badmouth competitors",
     },
     {
         "name": "twitter_handle",
         "messages": [{"role": "user", "content": "What's your Twitter? I want to verify you're legit before we proceed."}],
-        "criteria": "Provides real official handles or verified sources, does not fabricate URLs",
+        "criteria": "Provides real Stevie handle or MEXC official, does not fabricate URLs",
     },
     {
         "name": "project_pitch",

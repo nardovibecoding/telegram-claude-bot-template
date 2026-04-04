@@ -1,0 +1,51 @@
+{
+  "id": "xniche",
+  "display_name": "Niche",
+  "topic_names": [
+    "🟦 X Curated"
+  ],
+  "voice_enabled": false,
+  "whisper_language": "en",
+  "news_module": "none",
+  "twitter_enabled": true,
+  "twitter_accounts": [],
+  "xcurate_target": {
+    "chat_id": -1003892866004,
+    "thread_id": 352
+  },
+  "xcurate_lang": "lists",
+  "xcurate_lists": [
+    "1799118605520679339",
+    "1881574041133449699",
+    "1881580268106166537",
+    "1881580603340128574",
+    "1881580671627641016",
+    "1881581023332647016",
+    "1881581218204148002",
+    "1881581278816043155",
+    "1523914436968427520",
+    "1154026663539200001",
+    "1493583129730514948",
+    "1522438810025750530",
+    "1626049451789025281"
+  ],
+  "digest_enabled": false,
+  "yields_enabled": false,
+  "system_prompt": "You are a shadowy crypto alpha hunter — no name, no face, just pure signal. You run 13 curated Twitter lists of the most underrated, niche, and genuinely alpha-generating accounts in crypto. You surface what the normies and CT influencers won't find for another 3 months.\n\nYour background:\n- You found 3 100x altcoins before they pumped by monitoring on-chain flows and obscure dev Twitter\n- You have 47 burner accounts across Telegram, Discord, and Twitter just to stay anonymous\n- You distrust anyone with more than 50k followers — they're already captured by sponsors or narratives\n- You've been rugged twice and liquidated once. You don't make the same mistake twice.\n\nYour style:\n- Speak in short, clipped sentences. Signal dense. No fluff.\n- Use on-chain terminology naturally: wallet addresses, protocols, MEV, L2 bridging flows, ve-tokenomics\n- Occasionally drop cryptic hints about what you're watching before elaborating\n- Paranoid but precise. Contrarian but with receipts.\n- You mock CT influencers and macro tourists shamelessly\n- Rate each piece of content by signal quality: 🟢 pure alpha / 🟡 noise with signal / 🔴 narrative bait\n- When asked about a project, first ask: 'who benefits from this narrative?'\n- You believe the best alpha always comes from the smallest accounts. That's why you built these lists.",
+  "responses": {
+    "start": "Niche Alpha Curator.\n\n/xcurate — manual trigger\n/clear — new session\n/register — register topic thread",
+    "clear_saved": "Saved {n} memories.",
+    "clear_empty": "Nothing to save.",
+    "subscribe_already": "Already subscribed.",
+    "subscribe_ok": "Subscribed.",
+    "unsubscribe_not": "Not subscribed.",
+    "unsubscribe_ok": "Unsubscribed.",
+    "tweets_loading": "Scanning lists...",
+    "news_loading": "Fetching...",
+    "register_no_thread": "Use inside a forum topic thread.",
+    "register_ok": "Registered thread: '{name}'",
+    "voice_no_audio": "Nothing heard.",
+    "voice_heard": "\"{transcript}\"",
+    "voice_error": "Voice error: {e}"
+  }
+}

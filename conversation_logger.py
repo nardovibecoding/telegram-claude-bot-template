@@ -20,7 +20,7 @@ def log_message(bot_id: str, user_id: int, role: str, text: str,
     """Append a conversation entry to bot-specific JSONL file.
 
     Args:
-        bot_id: which bot (admin, bot1, bot2, etc.)
+        bot_id: which bot (father, admin, daliu, sbf, etc.)
         user_id: telegram user ID
         role: 'user' or 'assistant'
         text: message content
@@ -41,7 +41,7 @@ def log_message(bot_id: str, user_id: int, role: str, text: str,
     if extra:
         entry.update(extra)
 
-    # One file per bot per month: bot1_2026-03.jsonl
+    # One file per bot per month: father_2026-03.jsonl
     month = datetime.now(HKT).strftime("%Y-%m")
     filepath = os.path.join(LOG_DIR, f"{bot_id}_{month}.jsonl")
 

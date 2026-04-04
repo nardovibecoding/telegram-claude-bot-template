@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
 """
-Persistent vector memory for bot1 bot.
+Persistent vector memory for 大劉 bot.
 
 Storage:   SQLite (built-in) — staging table + main messages table
 Screening: one LLM call per session, triggered by /clear

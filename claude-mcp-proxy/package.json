@@ -1,0 +1,11 @@
+{
+  "name": "claude-mcp-proxy",
+  "version": "1.0.0",
+  "description": "Lazy-loading MCP proxy -- wraps multiple MCP servers behind 2 generic tools, saving ~22K tokens per session",
+  "type": "module",
+  "author": "Nardo (<github-user>)",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}

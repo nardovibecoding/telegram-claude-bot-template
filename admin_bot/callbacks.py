@@ -15,6 +15,7 @@ from .config import (
 )
 from .helpers import _parse_claude_output
 from .evolution import _update_evolution_status
+from llm_client import chat_completion
 from sanitizer import sanitize_external_content
 from x_feedback import record_vote
 from digest_feedback import record_vote as dfb_record_vote
@@ -181,7 +182,7 @@ async def handle_commit_deploy(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         proc = await asyncio.create_subprocess_exec(
             "bash", "-c",
-            "cd ~/telegram-claude-bot-template && git pull origin main && git add -A && git commit -m 'TG auto-commit' && git push origin main",
+            "cd ~/telegram-claude-bot && git pull origin main && git add -A && git commit -m 'TG auto-commit' && git push origin main",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
@@ -458,7 +459,7 @@ async def handle_ai_learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Proposed action: {proposed_action}\n\n"
                 f"Instructions:\n"
                 f"1. If there's a URL, read it (WebFetch or Read the repo)\n"
-                f"2. Analyze how it's relevant to OUR system (telegram-claude-bot-template, MCP servers, CLAUDE.md)\n"
+                f"2. Analyze how it's relevant to OUR system (telegram-claude-bot, MCP servers, CLAUDE.md)\n"
                 f"3. Output a draft with:\n"
                 f"   - What it is (2 sentences)\n"
                 f"   - Why it matters for us (specific files/systems affected)\n"
@@ -877,8 +878,8 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "xai": (".digest_sent_x_xai", ["python", "send_xdigest.py", "xai"]),
             "xniche": (".digest_sent_x_xniche", ["python", "send_xdigest.py", "xniche"]),
             "reddit": (".digest_sent_reddit_reddit", ["python", "send_reddit_digest.py"]),
-            "bot1": (".digest_sent_news_bot1", ["python", "send_digest.py", "bot1"]),
-            "bot2": (".digest_sent_news_bot2", ["python", "send_digest.py", "bot2"]),
+            "daliu": (".digest_sent_news_daliu", ["python", "send_digest.py", "daliu"]),
+            "sbf": (".digest_sent_news_sbf", ["python", "send_digest.py", "sbf"]),
         }
         info = RERUN_MAP.get(target)
         if not info:
@@ -921,8 +922,8 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         bot_defs = [
             ("admin", "Admin", "admin_bot", None),
-            ("bot1", "bot1", "run_bot.py bot1", ".digest_sent_news_bot1"),
-            ("bot2", "bot2", "run_bot.py bot2", ".digest_sent_news_bot2"),
+            ("daliu", "\u5927\u5289", "run_bot.py daliu", ".digest_sent_news_daliu"),
+            ("sbf", "SBF", "run_bot.py sbf", ".digest_sent_news_sbf"),
             ("reddit", "Reddit", "run_bot.py reddit", ".digest_sent_reddit_reddit"),
         ]
         restart_btns = []
@@ -998,7 +999,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         rerun_btns = [
             InlineKeyboardButton("\U0001f504 X Digest", callback_data="panel:rerun:twitter"),
-            InlineKeyboardButton("\U0001f504 News", callback_data="panel:rerun:bot1"),
+            InlineKeyboardButton("\U0001f504 News", callback_data="panel:rerun:daliu"),
             InlineKeyboardButton("\U0001f504 Reddit", callback_data="panel:rerun:reddit"),
         ]
         kb_rows = []
@@ -1026,8 +1027,8 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines = ["<b>\U0001f504 Sync</b>", sep, "GitHub \u2194 VPS:"]
 
         repos = [
-            ("telegram-claude-bot-template", f"/home/{os.getenv('VPS_USER', 'YOUR_VPS_USER')}/telegram-claude-bot-template"),
-            ("ops-guard-mcp", f"/home/{os.getenv('VPS_USER', 'YOUR_VPS_USER')}/ops-guard-mcp"),
+            ("telegram-claude-bot", "~/telegram-claude-bot"),
+            ("ops-guard-mcp", "~/ops-guard-mcp"),
         ]
         for repo_name, repo_path in repos:
             if not os.path.isdir(repo_path):
@@ -1293,6 +1294,155 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 "\n".join(lines), parse_mode="HTML", reply_markup=kb,
             )
+        except Exception:
+            pass
+        return
+
+    # ── outreach tab ─────────────────────────────────────────────────────
+    if action == "outreach":
+        await query.answer("Outreach")
+        svc_active = False
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "is-active", "outreach-autoreply",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            svc_out, _ = await proc.communicate()
+            svc_active = svc_out.decode().strip() == "active"
+        except Exception:
+            pass
+        if not svc_active:
+            try:
+                proc2 = await asyncio.create_subprocess_exec(
+                    "pgrep", "-f", "auto_reply",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                )
+                pgrep_out, _ = await proc2.communicate()
+                svc_active = bool(pgrep_out.decode().strip())
+            except Exception:
+                pass
+
+        chat_count = 0
+        db_path = os.path.join(PROJECT_DIR, "outreach.db")
+        try:
+            import sqlite3 as _sq
+            conn = _sq.connect(db_path)
+            chat_count = conn.execute(
+                "SELECT COUNT(*) FROM auto_reply_state WHERE auto_enabled = 1"
+            ).fetchone()[0]
+            conn.close()
+        except Exception:
+            pass
+
+        status_str = (
+            f"\U0001f7e2 ON ({chat_count} chats)" if svc_active else "\U0001f534 OFF"
+        )
+        sep = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+        lines = ["<b>\U0001f4e8 Outreach</b>", sep, f"Auto-reply: {status_str}", sep]
+
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("\U0001f7e2 On", callback_data="panel:autoreply:on"),
+                InlineKeyboardButton("\U0001f534 Off", callback_data="panel:autoreply:off"),
+                InlineKeyboardButton("\U0001f4cb Allow", callback_data="panel:autolist"),
+            ],
+            [
+                InlineKeyboardButton("\U0001f504 Refresh", callback_data="panel:outreach"),
+                InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:back"),
+            ],
+        ])
+        try:
+            await query.edit_message_text(
+                "\n".join(lines), parse_mode="HTML", reply_markup=kb,
+            )
+        except Exception:
+            pass
+        return
+
+    # ── outreach on/off ──────────────────────────────────────────────────
+    if action == "autoreply":
+        svc_cmd = "start" if target == "on" else "stop"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", svc_cmd, "outreach-autoreply",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+        except Exception:
+            pass
+        await query.answer(f"Auto-reply {'started' if target == 'on' else 'stopped'}")
+        # Re-render outreach tab
+        svc_active = False
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "is-active", "outreach-autoreply",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            svc_out2, _ = await proc.communicate()
+            svc_active = svc_out2.decode().strip() == "active"
+        except Exception:
+            pass
+        chat_count = 0
+        db_path = os.path.join(PROJECT_DIR, "outreach.db")
+        try:
+            import sqlite3 as _sq
+            conn = _sq.connect(db_path)
+            chat_count = conn.execute(
+                "SELECT COUNT(*) FROM auto_reply_state WHERE auto_enabled = 1"
+            ).fetchone()[0]
+            conn.close()
+        except Exception:
+            pass
+        status_str = (
+            f"\U0001f7e2 ON ({chat_count} chats)" if svc_active else "\U0001f534 OFF"
+        )
+        sep = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+        lines = ["<b>\U0001f4e8 Outreach</b>", sep, f"Auto-reply: {status_str}", sep]
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("\U0001f7e2 On", callback_data="panel:autoreply:on"),
+                InlineKeyboardButton("\U0001f534 Off", callback_data="panel:autoreply:off"),
+                InlineKeyboardButton("\U0001f4cb Allow", callback_data="panel:autolist"),
+            ],
+            [
+                InlineKeyboardButton("\U0001f504 Refresh", callback_data="panel:outreach"),
+                InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:back"),
+            ],
+        ])
+        try:
+            await query.edit_message_text(
+                "\n".join(lines), parse_mode="HTML", reply_markup=kb,
+            )
+        except Exception:
+            pass
+        return
+
+    # ── allow list ───────────────────────────────────────────────────────
+    if action == "autolist":
+        await query.answer("Allow list")
+        db_path = os.path.join(PROJECT_DIR, "outreach.db")
+        try:
+            import sqlite3 as _sq
+            conn = _sq.connect(db_path)
+            rows = conn.execute(
+                "SELECT chat_id, updated_at FROM auto_reply_state "
+                "WHERE auto_enabled = 1 ORDER BY updated_at DESC"
+            ).fetchall()
+            conn.close()
+            if not rows:
+                text = "No chats with auto-reply enabled."
+            else:
+                lines = [f"<b>Auto-reply active ({len(rows)} chats):</b>\n"]
+                for chat_id, updated in rows:
+                    lines.append(f"\u2022 <code>{chat_id}</code> (since {str(updated)[:16]})")
+                text = "\n".join(lines)
+        except Exception as e:
+            text = f"\u274c DB error: {e}"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:outreach")
+        ]])
+        try:
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
         except Exception:
             pass
         return
@@ -1634,4 +1784,76 @@ async def handle_model_switch(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     except Exception as e:
         log.error("Model switch failed: %s", e)
-        await query.edit_message_text(f"Model switch failed: {str(e)[:200]}")
+
+
+async def handle_tweetdraft(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Draft a tweet from a tweet idea. callback_data: tweetdraft:{key}"""
+    query = update.callback_query
+    if query.from_user.id != ADMIN_USER_ID:
+        await query.answer("Not authorized")
+        return
+
+    await query.answer("Drafting tweet..")
+    key = query.data.split(":", 1)[1]
+
+    # Load item from seen cache
+    seen_path = os.path.join(PROJECT_DIR, ".tweet_ideas_seen.json")
+    try:
+        with open(seen_path) as f:
+            seen = json.load(f)
+        item = seen.get(f"item:{key}")
+    except Exception:
+        item = None
+
+    if not item:
+        await query.message.reply_text("Item not found in cache. May have expired (24h TTL).")
+        return
+
+    title = item.get("title", "")
+    summary = item.get("summary", "")
+    url = item.get("url", "")
+    source_count = item.get("source_count", 1)
+    item_type = item.get("type", "news")
+
+    context_line = (
+        f"{source_count} sources covering this story" if item_type == "news"
+        else f"New AI tool/pattern from evolution feed"
+    )
+
+    prompt = f"""Draft a tweet about this topic for @<github-user> (vibecoding journey, builder mindset, casual-confident tone).
+
+Topic: {title}
+Context: {context_line}
+{f'Summary: {summary}' if summary else ''}
+{f'URL: {url}' if url else ''}
+
+Rules:
+- Max 280 chars
+- No em dashes, use commas or ".."
+- No hashtags unless genuinely needed (max 1)
+- Sound human, not like an AI announcement
+- First-person perspective as a builder/developer
+- Hook in first line
+
+Return ONLY the tweet text, nothing else."""
+
+    try:
+        draft = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: chat_completion([{"role": "user", "content": prompt}])
+        )
+    except Exception as e:
+        log.error("Tweet draft LLM failed: %s", e)
+        await query.message.reply_text(f"Draft failed: {e}")
+        return
+
+    draft = draft.strip().strip('"')
+    char_count = len(draft)
+
+    reply = (
+        f"📝 <b>Tweet draft</b> ({char_count}/280)\n\n"
+        f"{draft}"
+    )
+    if url:
+        reply += f"\n\n<i>Source: {url}</i>"
+
+    await query.message.reply_text(reply, parse_mode="HTML")

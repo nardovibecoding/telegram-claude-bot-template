@@ -4,7 +4,7 @@
 Usage:
     from pidlock import acquire_lock
 
-    if not acquire_lock("example_bot"):
+    if not acquire_lock("edwin_bot"):
         print("Another instance is running. Exiting.")
         sys.exit(1)
 """

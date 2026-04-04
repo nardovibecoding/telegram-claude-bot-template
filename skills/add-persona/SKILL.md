@@ -8,7 +8,7 @@ tags: [persona, bot, config, telegram]
 # Add New Persona Bot
 
 ## Existing personas
-bot1, bot2, devasini, twitter, xcn, xai, xniche, reddit
+daliu, sbf, devasini, twitter, xcn, xai, xniche, reddit
 
 ## Steps
 
@@ -55,13 +55,13 @@ python3 -c "import py_compile; py_compile.compile('admin_bot/config.py', doraise
 Use deploy-vps skill. After deploy:
 ```bash
 # Restart start_all.sh to pick up new bot
-ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot-template && ./start_all.sh stop && sleep 10 && nohup ./start_all.sh >> /tmp/start_all.log 2>&1 &"
+ssh <user>@<vps-ip> "cd ~/telegram-claude-bot && ./start_all.sh stop && sleep 10 && nohup ./start_all.sh >> /tmp/start_all.log 2>&1 &"
 ```
 
 ### 7. Verify
 ```bash
-ssh YOUR_VPS_USER@YOUR_VPS_IP "pgrep -af 'run_bot.py <id>'"
-ssh YOUR_VPS_USER@YOUR_VPS_IP "tail -10 /tmp/start_all.log"
+ssh <user>@<vps-ip> "pgrep -af 'run_bot.py <id>'"
+ssh <user>@<vps-ip> "tail -10 /tmp/start_all.log"
 ```
 Send a test message in the persona's TG thread and verify response.
 

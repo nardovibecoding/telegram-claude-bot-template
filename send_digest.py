@@ -4,9 +4,9 @@
 Standalone daily digest sender — run via OS cron, independent of bot uptime.
 
 Crontab entry (12:00 HKT = 04:00 UTC):
-  0 4 * * * cd ~/telegram-claude-bot-template && \
-            ~/telegram-claude-bot-template/venv/bin/python send_digest.py \
-            >> ~/telegram-claude-bot-template/logs/digest.log 2>&1
+  0 4 * * * cd ~/telegram-claude-bot && \
+            ~/telegram-claude-bot/venv/bin/python send_digest.py \
+            >> ~/telegram-claude-bot/logs/digest.log 2>&1
 """
 
 import asyncio

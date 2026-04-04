@@ -127,8 +127,8 @@ def _save_dead_letter(chat_id: int, text: str, error: str) -> None:
             f.seek(0)
             f.truncate()
             json.dump(letters, f, indent=2, ensure_ascii=False)
-    except OSError:
-        pass
+    except OSError as e:
+        logging.warning("dead_letter write failed: %s", e)
     try:
         os.chmod(DEAD_LETTERS_FILE, stat.S_IRUSR | stat.S_IWUSR)
     except OSError:
@@ -175,7 +175,20 @@ def _load_bot_sessions() -> dict:
 
 
 def _save_bot_sessions(sessions: dict) -> None:
-    CLAUDE_SESSIONS_FILE.write_text(json.dumps(sessions, indent=2))
+    import tempfile
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=CLAUDE_SESSIONS_FILE.parent, suffix=".tmp"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w") as f:
+            json.dump(sessions, f, indent=2)
+        os.replace(tmp_path, CLAUDE_SESSIONS_FILE)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _log_claude_cost(persona_id: str, session_key: str, cost_usd: float, duration_ms: int) -> None:
@@ -460,6 +473,17 @@ def run_persona(persona_id: str) -> None:
     # Track which topics are in "Claude mode" for follow-up routing (#6)
     _claude_active: dict[tuple, float] = {}  # conv_key → last claude timestamp
     CLAUDE_MODE_TIMEOUT = 300  # 5 min of inactivity → back to MiniMax
+
+    # ── Photo accumulator (intent-based) + album dedup ────────────────────────
+    _photo_queue: dict[tuple, list[dict]] = defaultdict(list)  # ck → [{file_id, caption}]
+    _media_group_seen: dict[str, float] = {}  # media_group_id → timestamp
+
+    # ── Text chunk merging (0.6s debounce) ────────────────────────────────────
+    _text_buffer: dict[tuple, list[str]] = defaultdict(list)
+    _text_buffer_tasks: dict[tuple, asyncio.Task] = {}
+    _text_buffer_updates: dict[tuple, Update] = {}  # keep latest update for flush
+    _text_buffer_contexts: dict[tuple, ContextTypes.DEFAULT_TYPE] = {}
+    TEXT_MERGE_DELAY = 0.6
 
     def _in_claude_mode(ck: tuple) -> bool:
         """Check if this topic is in active Claude Code conversation."""
@@ -1009,6 +1033,54 @@ def run_persona(persona_id: str) -> None:
 
     # ── Message handlers ──────────────────────────────────────────────────────
 
+    async def _process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+        """Core text processing — called after debounce or immediately for commands."""
+        chat_id   = update.effective_chat.id
+        thread_id = update.message.message_thread_id if update.message else None
+        ck = _conv_key(chat_id, thread_id)
+
+        # Photo queue flush: if photos are queued, this text is the intent
+        photos = _photo_queue.pop(ck, [])
+        if photos:
+            logger.info("PHOTO FLUSH: %d photos + intent=%.60r", len(photos), text)
+            await _respond_with_photos(update, context, text, photos)
+            return
+
+        # "exit" breaks out of Claude mode back to MiniMax chat
+        if text.lower().strip() in ("exit", "/exit", "done", "/done"):
+            if _in_claude_mode(ck):
+                _claude_active.pop(ck, None)
+                _photo_queue.pop(ck, None)  # clear any stale photos
+                await update.message.reply_text(f"Back to chat mode.")
+                return
+
+        # #6: If in active Claude mode, follow-ups go to Claude Code
+        if _in_claude_mode(ck):
+            logger.info("CLAUDE CODE (follow-up) — %.60r", text)
+            await _respond_claude(update, context, text)
+            return
+
+        # #2: Smart task detection
+        use_claude = await _needs_claude_smart(text)
+        if use_claude:
+            logger.info("CLAUDE CODE (smart detect) — %.60r", text)
+            await _respond_claude(update, context, text)
+        else:
+            await _respond(update, context, text)
+
+    async def _flush_text_buffer(ck: tuple) -> None:
+        """Flush debounced text chunks and process as one message."""
+        await asyncio.sleep(TEXT_MERGE_DELAY)
+        chunks = _text_buffer.pop(ck, [])
+        update = _text_buffer_updates.pop(ck, None)
+        context = _text_buffer_contexts.pop(ck, None)
+        _text_buffer_tasks.pop(ck, None)
+        if not chunks or not update or not context:
+            return
+        merged = "\n".join(chunks)
+        logger.info("TEXT MERGE: %d chunks → %d chars for ck=%s", len(chunks), len(merged), ck)
+        await _process_text(update, context, merged)
+
     async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message or not update.message.text:
             return
@@ -1043,26 +1115,16 @@ def run_persona(persona_id: str) -> None:
 
         ck = _conv_key(chat_id, thread_id)
 
-        # "exit" breaks out of Claude mode back to MiniMax chat
-        if text.lower().strip() in ("exit", "/exit", "done", "/done"):
-            if _in_claude_mode(ck):
-                _claude_active.pop(ck, None)
-                await update.message.reply_text(f"💬 Back to chat mode.")
-                return
+        # Text chunk debouncing: buffer and merge within 0.6s window
+        _text_buffer[ck].append(text)
+        _text_buffer_updates[ck] = update   # keep latest update
+        _text_buffer_contexts[ck] = context
 
-        # #6: If in active Claude mode, follow-ups go to Claude Code
-        if _in_claude_mode(ck):
-            logger.info("CLAUDE CODE (follow-up) — %.60r", text)
-            await _respond_claude(update, context, text)
-            return
-
-        # #2: Smart task detection
-        use_claude = await _needs_claude_smart(text)
-        if use_claude:
-            logger.info("CLAUDE CODE (smart detect) — %.60r", text)
-            await _respond_claude(update, context, text)
-        else:
-            await _respond(update, context, text)
+        # Cancel existing flush task, schedule new one
+        existing = _text_buffer_tasks.get(ck)
+        if existing and not existing.done():
+            existing.cancel()
+        _text_buffer_tasks[ck] = asyncio.ensure_future(_flush_text_buffer(ck))
 
     async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not whisper_model:
@@ -1111,6 +1173,108 @@ def run_persona(persona_id: str) -> None:
         except Exception as e:
             logger.error("Voice error: %s", e)
             await update.message.reply_text(_r("voice_error", e=e))
+
+    # ── Photo handler (accumulator + album dedup) ──────────────────────────────
+
+    async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not update.message or not update.message.photo:
+            return
+        chat_type = update.effective_chat.type
+        chat_id   = update.effective_chat.id
+        thread_id = update.message.message_thread_id
+        if chat_type != "private" and not _is_my_thread(chat_type, chat_id, thread_id):
+            return
+        if not _check_private_user(update):
+            return
+        user_id = update.effective_user.id if update.effective_user else 0
+        if not _check_rate_limit(user_id):
+            return
+
+        ck = _conv_key(chat_id, thread_id)
+
+        # Album dedup: skip if we already processed this media_group_id
+        mg_id = update.message.media_group_id
+        if mg_id:
+            if mg_id in _media_group_seen:
+                # Still add the photo to the queue (album has multiple photos)
+                pass
+            _media_group_seen[mg_id] = _time_mod.time()
+
+        # Get largest photo size
+        photo = update.message.photo[-1]
+        caption = update.message.caption or ""
+        if caption:
+            caption = sanitize_external_content(caption)
+
+        _photo_queue[ck].append({
+            "file_id": photo.file_id,
+            "file_unique_id": photo.file_unique_id,
+            "caption": caption,
+        })
+
+        count = len(_photo_queue[ck])
+        # For albums, only reply once (on last photo — after 0.8s debounce)
+        if mg_id:
+            # Cancel existing album notify task if any
+            task_key = f"album_{ck}"
+            existing = _text_buffer_tasks.get(task_key)
+            if existing and not existing.done():
+                existing.cancel()
+
+            async def _notify_album():
+                await asyncio.sleep(0.8)
+                n = len(_photo_queue[ck])
+                if n > 0:
+                    await update.message.reply_text(
+                        f"Got it ({n} photo{'s' if n > 1 else ''} queued). Send more or tell me what to do with them."
+                    )
+            _text_buffer_tasks[task_key] = asyncio.ensure_future(_notify_album())
+        else:
+            await update.message.reply_text(
+                f"Got it ({count} photo{'s' if count > 1 else ''} queued). Send more or tell me what to do with them."
+            )
+
+        logger.info("PHOTO queued: chat=%s count=%d album=%s", chat_id, count, mg_id or "no")
+
+    async def _respond_with_photos(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, photos: list[dict]) -> None:
+        """Download queued photos and route to Claude Code with the user's text intent."""
+        await update.effective_chat.send_action("typing")
+        downloaded = []
+        for p in photos:
+            try:
+                file = await context.bot.get_file(p["file_id"])
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    await file.download_to_drive(tmp.name)
+                    downloaded.append(tmp.name)
+            except Exception as e:
+                logger.warning("Photo download failed (file_id=%s): %s", p["file_id"], e)
+
+        if not downloaded:
+            await update.message.reply_text("Failed to download photos. Please try again.")
+            return
+
+        # Build prompt with photo paths for Claude Code
+        captions = [p["caption"] for p in photos if p["caption"]]
+        caption_note = f"\nPhoto captions: {'; '.join(captions)}" if captions else ""
+        prompt = f"[User sent {len(downloaded)} photo(s)]{caption_note}\nUser's instruction: {text}\n\nPhoto file paths:\n" + "\n".join(downloaded)
+
+        log_message(persona_id, update.effective_user.id if update.effective_user else 0, "user", prompt, "photo")
+        await _respond_claude(update, context, prompt)
+
+        # Cleanup temp files
+        for path in downloaded:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    # ── Media group cleanup (periodic, every 5 min) ──────────────────────────
+
+    def _cleanup_media_groups(context: ContextTypes.DEFAULT_TYPE) -> None:
+        now = _time_mod.time()
+        stale = [k for k, ts in _media_group_seen.items() if now - ts > 60]
+        for k in stale:
+            del _media_group_seen[k]
 
     # ── Startup flush ─────────────────────────────────────────────────────────
 
@@ -1165,9 +1329,9 @@ def run_persona(persona_id: str) -> None:
                     os.kill(int(pid), signal.SIGTERM)
                 except (ValueError, ProcessLookupError) as e:
                     logger.warning("kill pid failed: %s", e)
-            await update.message.reply_text(f"🔄 Admin bot killed (PID {pids}). start_all.sh will restart in 5s.")
+            await update.message.reply_text(f"🔄 Admin bot killed (PID {pids}). start_all.sh 會 5 秒內重啟。")
         else:
-            await update.message.reply_text("⚠️ Admin bot process not found.")
+            await update.message.reply_text("⚠️ Admin bot 冇搵到進程。")
 
     app.add_handler(CommandHandler("restart_admin", restart_admin))
     app.add_handler(CommandHandler("register",    register))
@@ -1595,9 +1759,13 @@ def run_persona(persona_id: str) -> None:
 
     app.add_handler(MessageHandler(filters.StatusUpdate.FORUM_TOPIC_CREATED, handle_topic_created))
     app.add_handler(MessageHandler(filters.StatusUpdate.FORUM_TOPIC_EDITED,  handle_topic_edited))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))  # before TEXT (captions)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     if voice_enabled:
         app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
+
+    # Periodic cleanup: purge stale media_group_seen entries
+    app.job_queue.run_repeating(lambda ctx: _cleanup_media_groups(ctx), interval=300, first=300)
 
     logger.info("Starting %s bot (topics: %s)…", display_name, topic_names)
     app.run_polling()

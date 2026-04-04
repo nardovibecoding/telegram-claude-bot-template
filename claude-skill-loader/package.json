@@ -1,0 +1,13 @@
+{
+  "name": "claude-skill-loader",
+  "version": "1.0.0",
+  "description": "On-demand skill loader for Claude Code -- serves skill instructions via MCP instead of pre-loading all into context",
+  "type": "module",
+  "main": "server.js",
+  "author": "Nardo (<github-user>)",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
+  }
+}

@@ -62,7 +62,7 @@ WHITELIST=(
     "2600:1901:"    # Google Cloud IPv6 (Anthropic API)
     # Microsoft / Azure
     "msedge.net" "azure" "microsoft.com"
-    # DigitalOcean / YOUR_VPS_PROVIDER
+    # DigitalOcean / Hetzner
     "digitalocean.com"
 
     # --- Telegram ---
@@ -141,7 +141,7 @@ WHITELIST=(
     "githubusercontent.com"
     "skillsmp.com"
 
-    # --- DNS (public DNS servers — Cloudflare + Google) ---
+    # --- DNS ---
     "1.1.1.1" "1.0.0.1"
     "8.8.8.8" "8.8.4.4"
 
@@ -222,7 +222,7 @@ if [ -n "$UNKNOWN_HOSTS" ]; then
     echo "$(date): ALERT $MSG" >> "$LOG_FILE"
 
     # Send Telegram alert → Healer/Heartbeat thread (152)
-    HEALER_CHAT_ID="${PERSONAL_GROUP_ID}"
+    HEALER_CHAT_ID="-1003827304557"
     HEALER_THREAD_ID="152"
     curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
         -d chat_id="${HEALER_CHAT_ID}" \

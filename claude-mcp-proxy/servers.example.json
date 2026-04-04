@@ -1,0 +1,14 @@
+{
+  "example-stdio": {
+    "type": "stdio",
+    "command": "node",
+    "args": ["~/path/to/your-server/dist/index.js"],
+    "env": {
+      "API_KEY": "${YOUR_API_KEY}"
+    }
+  },
+  "example-http": {
+    "type": "http",
+    "url": "http://localhost:8080/mcp"
+  }
+}

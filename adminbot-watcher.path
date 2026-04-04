@@ -2,14 +2,14 @@
 Description=Watch admin bot code for changes
 
 [Path]
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/commands.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/bridge.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/cognitive.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/chat.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/config.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/domains.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot/__main__.py
-PathModified=/home/YOUR_USER/YOUR_BOT_DIR/admin_bot.py
+PathModified=~/telegram-claude-bot/admin_bot/commands.py
+PathModified=~/telegram-claude-bot/admin_bot/bridge.py
+PathModified=~/telegram-claude-bot/admin_bot/cognitive.py
+PathModified=~/telegram-claude-bot/admin_bot/chat.py
+PathModified=~/telegram-claude-bot/admin_bot/config.py
+PathModified=~/telegram-claude-bot/admin_bot/domains.py
+PathModified=~/telegram-claude-bot/admin_bot/__main__.py
+PathModified=~/telegram-claude-bot/admin_bot.py
 Unit=adminbot-restart.service
 
 [Install]

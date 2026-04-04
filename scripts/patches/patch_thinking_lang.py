@@ -1,7 +1,6 @@
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
 """Fix thinking indicator language — detect user's language."""
-import os
-PATH = os.path.expanduser("~/telegram-claude-bot-template/bot.py")
+PATH = "~/telegram-claude-bot/edwin_bot.py"
 
 with open(PATH) as f:
     code = f.read()

@@ -59,11 +59,11 @@ class TestProcessCategory(unittest.TestCase):
         result = process_category("A", "X1", [])
         self.assertIn("No articles", result)
 
-    @patch("news.chat_completion", return_value="Bot analysis: market volatility today.")
+    @patch("news.chat_completion", return_value="大劉點睇：今日市場波動。")
     def test_returns_llm_output(self, _mock):
         articles = _make_articles(5)
         result = process_category("A", "X1", articles)
-        self.assertEqual(result, "Bot analysis: market volatility today.")
+        self.assertEqual(result, "大劉點睇：今日市場波動。")
 
     @patch("news.chat_completion", return_value="⚠️ All models failed: timeout")
     def test_warning_response_returned(self, _mock):

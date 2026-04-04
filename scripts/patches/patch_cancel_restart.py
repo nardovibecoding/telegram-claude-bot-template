@@ -1,9 +1,8 @@
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
-"""Add cancel-and-restart to bot.py — if new message arrives during processing, restart."""
+"""Add cancel-and-restart to edwin_bot.py — if new message arrives during processing, restart."""
 import re
 
-import os
-PATH = os.path.expanduser("~/telegram-claude-bot-template/bot.py")
+PATH = "~/telegram-claude-bot/edwin_bot.py"
 
 with open(PATH) as f:
     code = f.read()
@@ -37,7 +36,7 @@ code = code.replace(
 )
 
 # 3. Add new handle_text wrapper before _process_text
-new_handler = '''@_user_only
+new_handler = '''@_edwin_only
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel-and-restart: if processing, kill and combine messages."""
     text = (update.message.text or "").strip()
@@ -91,9 +90,9 @@ code = code.replace(
     new_handler + 'async def _process_text(update: Update'
 )
 
-# Remove duplicate @_user_only on _process_text (it's on handle_text now)
+# Remove duplicate @_edwin_only on _process_text (it's on handle_text now)
 code = code.replace(
-    '@_user_only\nasync def _process_text',
+    '@_edwin_only\nasync def _process_text',
     'async def _process_text'
 )
 

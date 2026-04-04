@@ -4,7 +4,7 @@
 Standalone watchdog runner — sends alert to Telegram if sources are failing.
 Run via cron 20 min before digest time.
 
-Crontab: 40 2 * * * cd ~/telegram-claude-bot-template && source venv/bin/activate && source .env && python run_watchdog.py >> /tmp/watchdog.log 2>&1
+Crontab: 40 2 * * * cd ~/telegram-claude-bot && source venv/bin/activate && source .env && python run_watchdog.py >> /tmp/watchdog.log 2>&1
 """
 
 import asyncio
@@ -21,9 +21,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("run_watchdog")
 
-# Same values as admin_bot/config.py
-PERSONAL_GROUP = int(os.environ.get("PERSONAL_GROUP_ID", "0"))
-HEARTBEAT_THREAD = int(os.environ.get("HEARTBEAT_THREAD_ID", "0"))
+from admin_bot.config import PERSONAL_GROUP
+HEARTBEAT_THREAD = 152
 
 
 async def main():

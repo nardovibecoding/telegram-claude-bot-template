@@ -3,8 +3,8 @@
 """Auto-Healer — universal self-diagnostic for the ENTIRE system.
 Detects failures across ALL components, diagnoses root cause, auto-fixes.
 
-Covers: digests (news/X/Reddit/crypto), Team A Scout, evolution digest,
-MCP servers, bot crashes, stuck processes, cookie staleness,
+Covers: digests (news/X/Reddit/crypto), Andrea Scout, evolution digest,
+China trends, MCP servers, bot crashes, stuck processes, cookie staleness,
 send failures, empty sections — EVERYTHING.
 
 Runs every 3 hours via cron. Reads all logs, checks all processes, fixes what it can."""
@@ -28,16 +28,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_ADMIN", "")
 ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
-CHAT_ID = int(os.environ.get("PERSONAL_GROUP_ID", "0"))
-THREAD_ID = int(os.environ.get("HEALER_THREAD_ID", "0"))  # Healer/Heartbeat thread
+CHAT_ID = int(os.environ.get("PERSONAL_GROUP", "-1003827304557"))
+THREAD_ID = 152  # Healer/Heartbeat thread
 CLAUDE_BIN = os.environ.get("CLAUDE_BIN", str(Path.home() / ".claude/local/claude"))
 HKT = timezone(timedelta(hours=8))
 
 LOG_FILES = {
     "bots": "/tmp/start_all.log",
     "admin": "/tmp/admin_bot.log",
-    "xhs_mcp": "/tmp/xhs-mcp-py.log",
-    "douyin_mcp": "/tmp/dy-mcp-py.log",
     "ai_digest": "/tmp/ai_digest.log",
     "china_trends": "/tmp/china_trends.log",
     "code_review": "/tmp/code_review.log",
@@ -138,7 +136,7 @@ async def detect_all_issues() -> list[dict]:
     bot_log = read_log("/tmp/start_all.log", 2000)
 
     # ── 1. Bot processes ──
-    for bot_id in ["bot1", "bot2", "reddit"]:
+    for bot_id in ["daliu", "sbf", "reddit"]:
         if not await check_process(f"run_bot.py {bot_id}"):
             issues.append({"type": "bot_down", "severity": "CRITICAL",
                            "component": bot_id, "details": f"Bot {bot_id} not running"})
@@ -147,15 +145,7 @@ async def detect_all_issues() -> list[dict]:
         issues.append({"type": "bot_down", "severity": "CRITICAL",
                        "component": "admin", "details": "Admin bot not running"})
 
-    # ── 2. MCP servers ──
-    if not await check_port(18060):
-        issues.append({"type": "service_down", "severity": "HIGH",
-                       "component": "xhs_mcp", "details": "XHS MCP (port 18060) not responding"})
-    if not await check_port(18070):
-        issues.append({"type": "service_down", "severity": "HIGH",
-                       "component": "douyin_mcp", "details": "Douyin MCP (port 18070) not responding"})
-
-    # ── 3. OpenClaw ──
+    # ── 2. OpenClaw ──
     if not await check_port(18789):
         issues.append({"type": "service_down", "severity": "LOW",
                        "component": "openclaw", "details": "OpenClaw gateway not responding"})
@@ -205,14 +195,14 @@ async def detect_all_issues() -> list[dict]:
                        "component": "x_digest",
                        "details": f"X digest errors: {x_failures[-1][:100]}"})
 
-    # ── 10. Team A Scout failures ──
+    # ── 10. Andrea Scout failures ──
     scout_fail = "Scout" in bot_log and "failed" in bot_log.lower()
     scout_log = read_log("/tmp/start_all.log", 500)
-    team_a_errors = re.findall(r'team_a.*(?:error|failed|exception)', scout_log, re.IGNORECASE)
-    if team_a_errors:
-        issues.append({"type": "team_a_failed", "severity": "MEDIUM",
-                       "component": "team_a_scout",
-                       "details": f"Team A Scout errors: {len(team_a_errors)}"})
+    andrea_errors = re.findall(r'andrea.*(?:error|failed|exception)', scout_log, re.IGNORECASE)
+    if andrea_errors:
+        issues.append({"type": "andrea_failed", "severity": "MEDIUM",
+                       "component": "andrea_scout",
+                       "details": f"Andrea Scout errors: {len(andrea_errors)}"})
 
     # ── 11. Cookie staleness ──
     cookie_path = BASE_DIR / "twitter_cookies.json"
@@ -277,8 +267,8 @@ async def detect_all_issues() -> list[dict]:
     # ── 17. Cron job didn't run (check flag files) ──
     today = now.strftime("%Y-%m-%d")
     expected_flags = {
-        "news_bot1": BASE_DIR / ".digest_sent_news_bot1",
-        "news_bot2": BASE_DIR / ".digest_sent_news_bot2",
+        "news_daliu": BASE_DIR / ".digest_sent_news_daliu",
+        "news_sbf": BASE_DIR / ".digest_sent_news_sbf",
         "x_twitter": BASE_DIR / ".digest_sent_x_twitter",
         "x_xcn": BASE_DIR / ".digest_sent_x_xcn",
         "x_xai": BASE_DIR / ".digest_sent_x_xai",
@@ -350,7 +340,9 @@ async def auto_fix(issues: list[dict]):
             f"2. Fix the root cause (not a band-aid)\n"
             f"3. For dead feeds/scrapers: test URL, find new URL if moved, update code\n"
             f"4. For bot_down: check why it crashed, fix the crash, it'll auto-restart\n"
-            f"5. For service_down: restart the service via systemctl\n"
+            f"   ⚠️ NEVER run admin_bot.py or start/restart the admin bot process — it's managed by start_all.sh. Running it directly causes pidlock kill loops.\n"
+            f"5. For service_down: restart the service via systemctl (e.g. systemctl --user restart <service>)\n"
+            f"   ⚠️ Do NOT restart admin_bot via any means — only non-admin services.\n"
             f"6. For digest_not_sent: check why cron failed, fix and re-trigger\n"
             f"7. Test your fix works\n"
             f"8. Commit with message starting with '[auto-healer]'\n"
@@ -472,4 +464,18 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import telegram.error as _tg_err
+    _MAX_RETRIES = 3
+    for _attempt in range(_MAX_RETRIES):
+        try:
+            asyncio.run(main())
+            break
+        except (_tg_err.TimedOut, _tg_err.NetworkError) as _e:
+            if _attempt < _MAX_RETRIES - 1:
+                log.warning("Telegram error (attempt %d/%d): %s — retrying in 10s", _attempt + 1, _MAX_RETRIES, _e)
+                import time as _time; _time.sleep(10)
+            else:
+                log.error("Auto-healer failed after %d attempts: %s", _MAX_RETRIES, _e)
+        except Exception as _e:
+            log.error("Auto-healer fatal error: %s", _e, exc_info=True)
+            break

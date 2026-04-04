@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
 """
-Shared utilities for telegram-claude-bot-template.
+Shared utilities for telegram-claude-bot.
 
 Centralises commonly duplicated helpers:
   - strip_think()       — remove <think>…</think> blocks from MiniMax output

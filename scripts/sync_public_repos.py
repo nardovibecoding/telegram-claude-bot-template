@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 Nardo (nardovibecoding). AGPL-3.0 — see LICENSE
+# Copyright (c) 2026 Nardo (<github-user>). AGPL-3.0 — see LICENSE
 """Sync private telegram-claude-bot files to public GitHub repos.
 
 Full pipeline: code files + README counts + GitHub description + topics + license.
@@ -15,19 +15,23 @@ import glob as _glob
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
-PRIVATE_ROOT = Path(__file__).parent.parent  # telegram-claude-bot-template/
+sys.path.insert(0, str(Path(__file__).parent))
+from sanitize import sanitize as _sanitize_fn, check_privacy as _check_privacy_fn
+
+PRIVATE_ROOT = Path(__file__).parent.parent  # telegram-claude-bot/
 PUBLIC_ROOT = Path.home()  # public repos cloned alongside
-_GH_USER = os.environ.get("GITHUB_USER", "YOUR_GITHUB_USER")
-_COPYRIGHT = "# Copyright (c) 2026 Nardo (nardovibecoding). AGPL-3.0 — see LICENSE"
+_GH_USER = "<github-user>"
+_COPYRIGHT = "# Copyright (c) 2026 Nardo (<github-user>). AGPL-3.0 — see LICENSE"
 
 # ── Repo configs ────────────────────────────────────────────────────────
 
 SYNC_MAP = {
-    "claude-security-guard": {
-        "repo": "claude-security-guard",
-        "clone_dir": PUBLIC_ROOT / "claude-security-guard",
+    "claude-sec-ops-guard": {
+        "repo": "claude-sec-ops-guard",
+        "clone_dir": PUBLIC_ROOT / "claude-sec-ops-guard",
         "files": {
             "hooks/guard_safety.py": "hooks/guard_safety.py",
             "hooks/auto_test_after_edit.py": "hooks/auto_test_after_edit.py",
@@ -54,6 +58,8 @@ SYNC_MAP = {
             "hooks/tg_security_guard.py": "hooks/tg_security_guard.py",
             "hooks/tg_api_guard.py": "hooks/tg_api_guard.py",
             "hooks/admin_only_guard.py": "hooks/admin_only_guard.py",
+            "hooks/auto_skill_sync.py": "hooks/auto_skill_sync.py",
+            "hooks/tests/test_auto_skill_sync.py": "hooks/tests/test_auto_skill_sync.py",
         },
         "readme": {
             # Badge patterns to update with actual count
@@ -103,43 +109,86 @@ SYNC_MAP = {
         ],
         "license": "AGPL-3.0",
     },
+    "claude-quality-gate": {
+        "repo": "claude-quality-gate",
+        "clone_dir": PUBLIC_ROOT / "claude-quality-gate",
+        "files": {
+            "hooks/async_safety_guard.py": "async_safety_guard.py",
+            "hooks/auto_copyright_header.py": "auto_copyright_header.py",
+            "hooks/auto_license.py": "auto_license.py",
+            "hooks/auto_review_before_done.py": "auto_review_before_done.py",
+            "hooks/auto_test_after_edit.py": "auto_test_after_edit.py",
+            "hooks/hardcoded_model_guard.py": "hardcoded_model_guard.py",
+            "hooks/hook_base.py": "hook_base.py",
+            "hooks/pre_commit_validate.py": "pre_commit_validate.py",
+            "hooks/resource_leak_guard.py": "resource_leak_guard.py",
+            "hooks/temp_file_guard.py": "temp_file_guard.py",
+            "hooks/test_helpers.py": "test_helpers.py",
+            "hooks/unicode_grep_warn.py": "unicode_grep_warn.py",
+        },
+        "readme": {
+            "badge_patterns": [
+                (r"hooks-\d+-blue", "hooks-{count}-blue"),
+            ],
+            "header_patterns": [
+                (r"## Hooks \(\d+\)", "## Hooks ({count})"),
+            ],
+            "count_glob": "*.py",
+            "count_exclude": ["hook_base.py", "test_helpers.py"],
+        },
+        "description": (
+            "Claude Code plugin — {hook_count} hooks that enforce "
+            "code quality on every operation: copyright headers, "
+            "license files, dependency checks, async safety, tests"
+        ),
+        "topics": [
+            "claude-code", "claude-code-plugin", "hooks",
+            "code-quality", "automation", "python", "developer-tools",
+            "pre-commit", "vibecoding",
+        ],
+        "license": "AGPL-3.0",
+    },
+    "claude-skills-curation": {
+        "repo": "claude-skills-curation",
+        "clone_dir": PUBLIC_ROOT / "claude-skills-curation",
+        "files": {
+            "hooks/guard_safety.py": "hooks/guard-safety/guard_safety.py",
+            "hooks/auto_content_remind.py": "hooks/auto-content-remind/auto_content_remind.py",
+            "hooks/auto_context_checkpoint.py": "hooks/auto-context-checkpoint/auto_context_checkpoint.py",
+            "hooks/auto_license.py": "hooks/auto-license/auto_license.py",
+            "hooks/auto_repo_check.py": "hooks/auto-repo-check/auto_repo_check.py",
+            "hooks/auto_restart_process.py": "hooks/auto-restart-process/auto_restart_process.py",
+            "hooks/auto_skill_sync.py": "hooks/auto-skill-sync/auto_skill_sync.py",
+            "hooks/auto_bot_restart.py": "hooks/bot-restart/auto_bot_restart.py",
+            "hooks/auto_dependency_grep.py": "hooks/dependency-grep/auto_dependency_grep.py",
+            "hooks/auto_memory_index.py": "hooks/memory-index/auto_memory_index.py",
+            "hooks/auto_pip_install.py": "hooks/pip-install/auto_pip_install.py",
+            "hooks/hook_base.py": "hooks/shared/hook_base.py",
+            "hooks/vps_config.py": "hooks/shared/vps_config.py",
+            "hooks/auto_vps_sync.py": "hooks/vps-sync/auto_vps_sync.py",
+        },
+        "description": (
+            "Claude Code plugin — curated skills and hooks "
+            "for AI-assisted development workflows: guards, "
+            "auto-ops, skill management, VPS sync"
+        ),
+        "topics": [
+            "claude-code", "claude-code-plugin", "skills",
+            "hooks", "automation", "python", "developer-tools",
+            "vibecoding", "workflow",
+        ],
+        "license": "AGPL-3.0",
+    },
 }
 
-# ── Sanitization ────────────────────────────────────────────────────────
-
-_STRIP_PATTERNS = [
-    (re.compile(r"/Users/[^/]+/telegram-claude-bot-template/"), "~/telegram-claude-bot-template/"),
-    (re.compile(r"/home/[^/]+/telegram-claude-bot-template/"), "~/telegram-claude-bot-template/"),
-    (re.compile(r"\w+@\d+\.\d+\.\d+\.\d+"), "<user>@<vps-ip>"),
-    (re.compile(r"nardovibecoding"), "<github-user>"),
-]
-
-_PRIVATE_CANARY = [
-    re.compile(r"/Users/\w+/telegram-claude-bot"),
-    re.compile(r"/home/\w+/telegram-claude-bot"),
-    re.compile(r"\d+\.\d+\.\d+\.\d+"),
-    re.compile(r"YOUR_EMAIL@gmail"),
-    re.compile(r"YOUR_BOT_EMAIL@gmail"),
-    re.compile(r"personal\.name@company"),
-    re.compile(r"TELEGRAM_BOT_TOKEN_\w+"),
-    re.compile(r"MINIMAX_API_KEY|KIMI_API_KEY|DEEPSEEK_API_KEY"),
-    re.compile(r"GROQ_API_KEY|CEREBRAS_API_KEY|GEMINI_API_KEY"),
-]
-
+# ── Sanitization (shared logic in sanitize.py) ──────────────────────────
 
 def _sanitize(content: str) -> str:
-    for pattern, replacement in _STRIP_PATTERNS:
-        content = pattern.sub(replacement, content)
-    return content
+    return _sanitize_fn(content)
 
 
 def _check_privacy(content: str, filename: str) -> list[str]:
-    violations = []
-    for pattern in _PRIVATE_CANARY:
-        matches = pattern.findall(content)
-        if matches:
-            violations.append(f"  {filename}: leaked `{matches[0]}`")
-    return violations
+    return [f"  {v}" for v in _check_privacy_fn(content, filename)]
 
 
 # ── README auto-update ──────────────────────────────────────────────────
@@ -414,7 +463,7 @@ def main():
         help="Preview what would change")
     parser.add_argument(
         "repo", nargs="?",
-        help="Sync only this repo (e.g. 'claude-security-guard')")
+        help="Sync only this repo (e.g. 'claude-sec-ops-guard')")
     args = parser.parse_args()
 
     if not args.sync:

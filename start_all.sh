@@ -30,6 +30,7 @@ stop_all() {
         echo "No PID file found. Killing by name..."
         pkill -9 -f "run_bot.py" 2>/dev/null
         pkill -9 -f "admin_bot.py" 2>/dev/null
+        pkill -9 -f "edwin_bot.py" 2>/dev/null
     fi
 }
 
@@ -56,28 +57,20 @@ run_with_restart() {
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting $name..."
         "$@"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $name stopped (exit code $?), restarting in 5s..."
-        sleep 5
+        sleep 2
     done
 }
 
 # Start each in its own process group (set -m gives each bg job its own pgid)
 set -m
-
-# Auto-discover and launch all persona bots from personas/*.json
-for config in personas/*.json; do
-    [ -f "$config" ] || continue
-    # Skip the example template
-    basename_f=$(basename "$config" .json)
-    [ "$basename_f" = "example" ] && continue
-    pid=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "$config" 2>/dev/null)
-    if [ -n "$pid" ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Auto-discovered persona: $pid"
-        run_with_restart "$pid" python run_bot.py "$pid" &
-    fi
-done
-
-# Admin bot (always runs — not a persona)
+run_with_restart "大劉"      python run_bot.py daliu &
+run_with_restart "SBF"       python run_bot.py sbf &
+run_with_restart "Reddit"    python run_bot.py reddit &
+# X bots (twitter/xcn/xai/xniche) consolidated — digests via cron send_xdigest.py
 run_with_restart "Admin"     python admin_bot.py &
+# Edwin now runs as Claude Code + TG plugin (separate tmux session "edwin")
+# To start: tmux new-session -d -s edwin 'cd ~/edwin-claude && TELEGRAM_STATE_DIR=~/.claude/channels/edwin-telegram PATH=$HOME/.local/bin:$HOME/.bun/bin:$PATH ~/.local/bin/claude --channels plugin:telegram@claude-plugins-official --model sonnet --effort low'
+# Old python bot disabled: run_with_restart "Edwin" python edwin_bot.py &
 
 # Save process group IDs for clean shutdown
 jobs -p > "$PIDFILE"

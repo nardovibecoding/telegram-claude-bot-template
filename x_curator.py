@@ -171,6 +171,7 @@ _client_lock = threading.Lock()
 # Prefetched tweets cache (in-memory for same process, file for cross-process)
 _prefetch_cache = {"tweets": None, "ts": None}
 _PREFETCH_FILE = Path(__file__).parent / ".xcurate_prefetch.json"
+_PREFETCH_LOCK = asyncio.Lock()
 _COOKIE_LOCK_FILE = Path(__file__).parent / ".cookie_refreshing"
 
 
@@ -957,14 +958,15 @@ async def prefetch_tweets() -> None:
     _prefetch_cache["ts"] = datetime.now(timezone.utc)
     # Save to file so other bot processes can use the same fetch (atomic write)
     try:
-        fd, tmp_path = tempfile.mkstemp(dir=_PREFETCH_FILE.parent, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as tmp_f:
-                json.dump({"ts": datetime.now(timezone.utc).isoformat(), "tweets": tweets}, tmp_f, ensure_ascii=False)
-            os.replace(tmp_path, _PREFETCH_FILE)
-        except BaseException:
-            os.unlink(tmp_path)
-            raise
+        async with _PREFETCH_LOCK:
+            fd, tmp_path = tempfile.mkstemp(dir=_PREFETCH_FILE.parent, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as tmp_f:
+                    json.dump({"ts": datetime.now(timezone.utc).isoformat(), "tweets": tweets}, tmp_f, ensure_ascii=False)
+                os.replace(tmp_path, _PREFETCH_FILE)
+            except BaseException:
+                os.unlink(tmp_path)
+                raise
     except Exception as e:
         logger.warning("Failed to save prefetch file: %s", e)
     logger.info("Prefetched %d tweets (cached for digest)", len(tweets))
@@ -998,14 +1000,15 @@ async def generate_daily_digest(api_key: str, lang: str | None = None, list_ids:
         if raw_tweets is None:
             raw_tweets = await fetch_home_tweets()
             try:
-                fd, tmp_path = tempfile.mkstemp(dir=_PREFETCH_FILE.parent, suffix=".tmp")
-                try:
-                    with os.fdopen(fd, "w") as tmp_f:
-                        json.dump({"ts": datetime.now(timezone.utc).isoformat(), "tweets": raw_tweets}, tmp_f, ensure_ascii=False)
-                    os.replace(tmp_path, _PREFETCH_FILE)
-                except BaseException:
-                    os.unlink(tmp_path)
-                    raise
+                async with _PREFETCH_LOCK:
+                    fd, tmp_path = tempfile.mkstemp(dir=_PREFETCH_FILE.parent, suffix=".tmp")
+                    try:
+                        with os.fdopen(fd, "w") as tmp_f:
+                            json.dump({"ts": datetime.now(timezone.utc).isoformat(), "tweets": raw_tweets}, tmp_f, ensure_ascii=False)
+                        os.replace(tmp_path, _PREFETCH_FILE)
+                    except BaseException:
+                        os.unlink(tmp_path)
+                        raise
             except Exception as e:
                 logger.warning("Failed to save prefetch cache: %s", e)
 

@@ -45,8 +45,8 @@ Use deploy-vps skill:
 git add admin_bot/commands.py admin_bot/__main__.py
 git commit -m "add /mycommand command"
 git push origin main
-ssh YOUR_VPS_USER@YOUR_VPS_IP "cd ~/telegram-claude-bot-template && git fetch && git reset --hard origin/main"
-ssh YOUR_VPS_USER@YOUR_VPS_IP "kill \$(pgrep -f 'python admin_bot' | head -1)"
+ssh <user>@<vps-ip> "cd ~/telegram-claude-bot && git fetch && git reset --hard origin/main"
+ssh <user>@<vps-ip> "kill \$(pgrep -f 'python admin_bot' | head -1)"
 # Wait 5s for start_all.sh auto-restart
 ```
 
@@ -55,7 +55,7 @@ Send `/mycommand` in the admin Telegram chat and verify response.
 
 ### 6. Verify in logs
 ```bash
-ssh YOUR_VPS_USER@YOUR_VPS_IP "tail -10 /tmp/start_all.log"
+ssh <user>@<vps-ip> "tail -10 /tmp/start_all.log"
 ```
 
 ## Rules

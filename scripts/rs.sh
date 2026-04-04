@@ -1,14 +1,26 @@
 #!/bin/bash
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
 # Quick restart for services. Usage: rs [service]
-# rs          = restart bots
+# rs          = restart auto-reply
+# rs autoreply = restart auto-reply
+# rs eddie    = restart Eddie
 # rs bots     = restart persona bots (kill, start_all.sh auto-restarts)
 # rs reminder = restart reminder daemon
 # rs all      = restart everything
 
-SERVICE="${1:-bots}"
+SERVICE="${1:-autoreply}"
 
 case "$SERVICE" in
+    autoreply|ar|reply)
+        echo "Restarting auto-reply..."
+        systemctl --user restart outreach-autoreply
+        sleep 2
+        systemctl --user status outreach-autoreply --no-pager | head -5
+        ;;
+    eddie|edwin)
+        echo "Restarting Eddie..."
+        bash ~/telegram-claude-bot/edwin-claude/start-edwin.sh
+        ;;
     bots|persona)
         echo "Killing persona bots (start_all.sh will auto-restart)..."
         pkill -f 'run_bot.py' || true
@@ -17,18 +29,24 @@ case "$SERVICE" in
         ;;
     reminder)
         echo "Restarting reminder daemon..."
-        systemctl --user restart reminder
+        systemctl --user restart edwin_reminder
         sleep 2
-        systemctl --user status reminder --no-pager | head -5
+        systemctl --user status edwin_reminder --no-pager | head -5
         ;;
     all)
         echo "Restarting everything..."
+        systemctl --user restart outreach-autoreply
+        systemctl --user restart edwin_reminder
+        bash ~/telegram-claude-bot/edwin-claude/start-edwin.sh
         pkill -f 'run_bot.py' || true
         sleep 5
         echo "--- Status ---"
+        systemctl --user is-active outreach-autoreply && echo "auto-reply: UP" || echo "auto-reply: DOWN"
+        systemctl --user is-active edwin_reminder && echo "reminder: UP" || echo "reminder: DOWN"
+        tmux has-session -t edwin 2>/dev/null && echo "eddie: UP" || echo "eddie: DOWN"
         pgrep -af 'run_bot.py' | grep -v pgrep | wc -l | xargs -I{} echo "persona bots: {} running"
         ;;
     *)
-        echo "Usage: rs [bots|reminder|all]"
+        echo "Usage: rs [autoreply|eddie|bots|reminder|all]"
         ;;
 esac

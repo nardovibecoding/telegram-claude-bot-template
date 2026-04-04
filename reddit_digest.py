@@ -150,7 +150,7 @@ def _fetch_single_sub(sub: str, cutoff: float) -> list[dict]:
     # ── Try 2: Cloudflare Worker proxy (fallback) ────────────────────
     REDDIT_PROXY = os.environ.get(
         "REDDIT_PROXY_URL",
-        os.environ.get("REDDIT_PROXY_URL", ""),
+        "https://reddit-proxy.okaybernard-6fe.workers.dev",
     )
     for attempt in range(1, 3):
         try:
@@ -193,7 +193,35 @@ def _fetch_single_sub(sub: str, cutoff: float) -> list[dict]:
             logger.warning("r/%s direct retry %d/2: %s", sub, attempt, e)
             time.sleep(attempt * 3)
 
-    logger.error("r/%s: all fetch methods failed (OAuth + proxy + direct)", sub)
+    # ── Try 4: opencli-rs (structured Reddit adapter via Mac tunnel) ────
+    try:
+        from opencli_client import get_reddit_posts as _opencli_reddit, health as _opencli_health
+        if _opencli_health():
+            posts = _opencli_reddit(sub, limit=50, cutoff=cutoff)
+            if posts:
+                logger.info("r/%s (opencli): %d posts", sub, len(posts))
+                return posts
+            logger.warning("r/%s opencli: 0 posts returned", sub)
+        else:
+            logger.debug("r/%s opencli: server not available", sub)
+    except Exception as e:
+        logger.warning("r/%s opencli error: %s", sub, e)
+
+    # ── Try 5: camofox browser (JS-rendered, bot-detection bypass) ──────
+    try:
+        from camofox_client import get_reddit_posts as _camofox_reddit, health as _camofox_health
+        if _camofox_health():
+            posts = _camofox_reddit(sub, limit=50, cutoff=cutoff)
+            if posts:
+                logger.info("r/%s (camofox): %d posts", sub, len(posts))
+                return posts
+            logger.warning("r/%s camofox: 0 posts returned", sub)
+        else:
+            logger.warning("r/%s camofox: server not available", sub)
+    except Exception as e:
+        logger.warning("r/%s camofox error: %s", sub, e)
+
+    logger.error("r/%s: all fetch methods failed (OAuth + proxy + direct + camofox)", sub)
     return []
 
 
