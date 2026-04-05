@@ -379,11 +379,117 @@ async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not context.args:
         await update.message.reply_text(
-            "Usage: /digest &lt;bot&gt; or /digest all\n"
+            "Usage:\n"
+            "/digest now — curate + send from queue\n"
+            "/digest status — queue stats\n"
+            f"/digest &lt;bot&gt; — trigger bot digest\n"
             f"Bots: {', '.join(DIGEST_BOTS)}\n"
-            "Or: /digest rerun &lt;job&gt;",
+            "/digest rerun &lt;job&gt;",
             parse_mode="HTML",
         )
+        return
+
+    # Handle /digest now — curate from content intelligence queue
+    if context.args[0].lower() == "now":
+        try:
+            from content_intelligence import ci
+            from llm_client import chat_completion
+            queue = ci.get_queue(limit=15, exclude_channels=["ai_tech"])
+            if not queue:
+                await update.message.reply_text("Queue empty — no unsent stories.")
+                return
+            msg = await update.message.reply_text(
+                f"Curating {len(queue)} stories..."
+            )
+            # Build story list for LLM curation
+            lines = []
+            for i, s in enumerate(queue):
+                lines.append(
+                    f"[{i}] {s['tag']} {s['title']} "
+                    f"({s['sources']}) score:{s['score']}"
+                )
+            prompt = (
+                "You are a sharp news curator. Pick the best 15 stories "
+                "from this queue. For each, add an emoji and a one-liner.\n"
+                "Respond as HTML. Format each as:\n"
+                "EMOJI <b>TITLE</b> (SOURCES)\nONE_LINER\nURL\n\n"
+                "Stories:\n" + "\n".join(lines)
+            )
+            raw = chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=3000, timeout=45,
+            )
+            # Build formatted message
+            from datetime import datetime, timezone, timedelta
+            HKT = timezone(timedelta(hours=8))
+            today = datetime.now(HKT).strftime("%Y-%m-%d")
+            header = f"<b>Digest — {today}</b>\n\n"
+            body = header
+            for s in queue[:15]:
+                tag = s["tag"]
+                title = s["title"].replace("&", "&amp;").replace("<", "&lt;")
+                url = s["url"]
+                sources = s["sources"]
+                body += (
+                    f'{tag} <a href="{url}">{title}</a>\n'
+                    f'   <i>{sources}</i>\n\n'
+                )
+            body += "<i>From content intelligence queue</i>"
+            # Send to AI World
+            from admin_bot.config import BOT_THREADS
+            ai_world_group = int(os.environ.get(
+                "AI_WORLD_GROUP", "-1003892866004"
+            ))
+            ai_world_thread = 3638
+            try:
+                await context.bot.send_message(
+                    chat_id=ai_world_group,
+                    message_thread_id=ai_world_thread,
+                    text=body[:4000],
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                ci.mark_sent(
+                    [s["id"] for s in queue[:15]], "digest_now"
+                )
+                await msg.edit_text(
+                    f"Sent {min(15, len(queue))} stories to AI World"
+                )
+            except Exception as e:
+                await msg.edit_text(f"Send failed: {e}")
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+        return
+
+    # Handle /digest status — queue stats
+    if context.args[0].lower() == "status":
+        try:
+            from content_intelligence import ci
+            status = ci.get_status()
+            lines = [
+                f"<b>Content Intelligence</b>",
+                f"Queue: {status['queue_size']} unsent",
+                f"Total: {status['total_stories']} stories",
+                f"Sent: {status['total_sent']}",
+                "",
+                "<b>Sources:</b>",
+            ]
+            for src, info in status["sources"].items():
+                lines.append(
+                    f"  {src}: {info['count']} stories"
+                )
+            if status["channels"]:
+                lines.append("")
+                lines.append("<b>Channels:</b>")
+                for ch, info in status["channels"].items():
+                    lines.append(
+                        f"  {ch}: {info['count']} sent"
+                    )
+            await update.message.reply_text(
+                "\n".join(lines), parse_mode="HTML"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
         return
 
     # Handle /digest all — run all digests sequentially
