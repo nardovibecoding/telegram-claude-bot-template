@@ -12,8 +12,8 @@ class TestFallbackChain(unittest.TestCase):
     def test_kimi_is_primary(self):
         self.assertEqual(_FALLBACK_CHAIN[0], "kimi")
 
-    def test_minimax_is_second(self):
-        self.assertEqual(_FALLBACK_CHAIN[1], "minimax")
+    def test_qwen_is_second(self):
+        self.assertEqual(_FALLBACK_CHAIN[1], "qwen")
 
     def test_all_providers_exist(self):
         for key in _FALLBACK_CHAIN:

@@ -2214,7 +2214,7 @@ async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     focus = " ".join(context.args) if context.args else ""
     await update.message.reply_text("\U0001f9e0 Let me break that down\u2026")
     try:
-        from .sdk_client import sdk_query
+        from llm_client import chat_completion_async
         eli5_system = (
             "You are a sharp analyst who explains complex news to a smart non-technical friend. "
             "When given a news item, break it down:\n\n"
@@ -2231,11 +2231,15 @@ async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "- Match language of source (Chinese->Chinese, English->English)."
         )
         full_text = source_text + article_context
-        user_prompt = eli5_system + "\n\nExplain this:\n\n" + full_text[:8000]
+        user_prompt = full_text[:8000]
         if focus:
             user_prompt += f"\n\nFocus on: {focus}"
 
-        reply = await sdk_query(user_prompt, domain="eli5", model="haiku")
+        reply = await chat_completion_async(
+            [{"role": "user", "content": user_prompt}],
+            max_tokens=1000,
+            system=eli5_system,
+        )
         if len(reply) <= 4096:
             await update.message.reply_text(reply)
         else:

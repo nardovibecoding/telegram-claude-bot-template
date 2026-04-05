@@ -71,7 +71,7 @@ PROVIDERS = {
 }
 
 # Fallback chain order for chat_completion (single-model path)
-_FALLBACK_CHAIN = ["qwen", "kimi", "cerebras", "gemini"]
+_FALLBACK_CHAIN = ["kimi", "qwen", "cerebras", "gemini"]
 
 # Errors that trigger immediate fallback (no retry on same model)
 _FATAL_PATTERNS = [
