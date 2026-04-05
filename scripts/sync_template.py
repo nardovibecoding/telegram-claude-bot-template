@@ -69,7 +69,7 @@ COPY_PY_FILES = {
     "content_broadcaster.py", "conversation_compressor.py",
     "conversation_logger.py", "cost_tracker.py", "crypto_news.py",
     "debate_council.py", "digest_feedback.py", "digest_ui.py",
-    "douyin_digest.py", "evolution_database.json", "evolution_feed.py",
+    "evolution_database.json", "evolution_feed.py",
     "face_agent.py", "fetch_watchdog.py", "gap_detector.py",
     "gpt_critic.py", "llm_client.py", "memory.py", "morning_report.py",
     "multi_model_reviewer.py", "news.py", "podcast_digest.py",
@@ -78,7 +78,7 @@ COPY_PY_FILES = {
     "skill_library.py", "speak_hook.py", "stablecoin_yields.py",
     "status_monitor.py", "twitter_feed.py", "utils.py",
     "voice_daemon.py", "x_curator.py", "x_feedback.py",
-    "x_forecast.py", "xhs_digest.py", "youtube_digest.py",
+    "x_forecast.py", "youtube_digest.py",
     "pidlock.py", "gap_detector.py", "andrea_scout.py",
     "ai_learning_digest.py",
 }

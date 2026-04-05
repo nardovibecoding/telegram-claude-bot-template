@@ -104,7 +104,7 @@ def trim_json_dict(filename, max_entries):
 # ── Digest caches (12h TTL) ────���─────────────────────────
 for f in [".reddit_cache.json", ".xcurate_prefetch.json", ".china_trends_cache.json",
           ".youtube_cache.json", ".podcast_cache.json",
-          ".ai_digest_cache.json", ".xhs_digest_cache.json", ".douyin_digest_cache.json",
+          ".ai_digest_cache.json",
           ]:
     clear_if_stale(f, H12)
 
