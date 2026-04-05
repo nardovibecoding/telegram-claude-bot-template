@@ -19,8 +19,10 @@ def main():
     try:
         hook_input = json.load(sys.stdin)
         prompt = hook_input.get("prompt", "")
+        hook_session = hook_input.get("session_id", "")
     except (json.JSONDecodeError, EOFError):
         prompt = ""
+        hook_session = ""
 
     # Don't block if user is already running /s
     if prompt.strip().startswith("/s"):
@@ -34,7 +36,13 @@ def main():
     try:
         data = json.loads(STATUSLINE_JSON.read_text())
         ctx_pct = float(data.get("context_window", {}).get("used_percentage", 0))
+        file_session = data.get("session_id", "")
     except (ValueError, OSError, KeyError):
+        print("{}")
+        return
+
+    # Stale statusline from a different session — ignore
+    if hook_session and file_session and hook_session != file_session:
         print("{}")
         return
 
@@ -55,18 +63,20 @@ def main():
     marker = Path("/tmp/claude_auto_save_needed")
     marker.write_text(json.dumps({"pct": ctx_pct, "ts": str(Path("/tmp/claude_statusline.json").stat().st_mtime)}))
 
-    # Also emit systemMessage as backup
-    sys.stderr.write(f"[context_50] FIRED at {ctx_pct:.0f}%\n")
+    # Inject into Claude's context via additionalContext
     print(json.dumps({
-        "systemMessage": (
-            f"CONTEXT AT {ctx_pct:.0f}%. Auto-save now. "
-            f"1. Set tab title (bash, foreground). "
-            f"2. Spawn ONE background Agent (model=haiku, run_in_background=true) to: "
-            f"write convo summary to memory, add MEMORY.md pointer, file atoms to ~/NardoWorld/. "
-            f"3. Print 'Saving... /clear' so user can /clear immediately. "
-            f"4. Then answer the user's message normally. "
-            f"Do not ask permission. Do this alongside your response."
-        )
+        "hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit",
+            "additionalContext": (
+                f"CONTEXT AT {ctx_pct:.0f}%. Auto-save now. "
+                f"1. Set tab title (bash, foreground). "
+                f"2. Spawn ONE background Agent (model=haiku, run_in_background=true) to: "
+                f"write convo summary to memory, add MEMORY.md pointer, file atoms to ~/NardoWorld/. "
+                f"3. Print 'Saving... /clear' so user can /clear immediately. "
+                f"4. Then answer the user's message normally. "
+                f"Do not ask permission. Do this alongside your response."
+            )
+        }
     }))
 
 

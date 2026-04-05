@@ -28,13 +28,16 @@ def main():
 
     if RECALL_PATTERNS.search(prompt):
         print(json.dumps({
-            "systemMessage": (
-                "\u26a0\ufe0f RECALL QUESTION DETECTED. "
-                "Check ALL memory dirs BEFORE answering:\n"
-                "  1. Project: ~/.claude/projects/-Users-bernard-polymarket-bot/memory/\n"
-                "  2. Home: ~/.claude/projects/-Users-bernard/memory/\n"
-                "Do NOT say 'not using' or 'don't have' without checking memory first."
-            )
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": (
+                    "\u26a0\ufe0f RECALL QUESTION DETECTED. "
+                    "Check ALL memory dirs BEFORE answering:\n"
+                    "  1. Project: ~/.claude/projects/-Users-bernard-polymarket-bot/memory/\n"
+                    "  2. Home: ~/.claude/projects/-Users-bernard/memory/\n"
+                    "Do NOT say 'not using' or 'don't have' without checking memory first."
+                )
+            }
         }))
     else:
         print("{}")

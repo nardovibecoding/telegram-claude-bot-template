@@ -86,12 +86,15 @@ def main():
         DONE_MARKER.write_text("injected")
         sys.stderr.write(f"[continuity] Injected today's librarian log at {ctx_pct:.0f}%\n")
         print(json.dumps({
-            "systemMessage": (
-                "SESSION CONTINUITY: Here's what was worked on today "
-                "(from librarian-log.md). Use this as context if the user "
-                "references earlier work or runs skills like /story that need "
-                "session history.\n\n" + today_log
-            )
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": (
+                    "SESSION CONTINUITY: Here's what was worked on today "
+                    "(from librarian-log.md). Use this as context if the user "
+                    "references earlier work or runs skills like /story that need "
+                    "session history.\n\n" + today_log
+                )
+            }
         }))
         return
 
