@@ -38,19 +38,34 @@ def main():
         print("{}")
         return
 
+    done_marker = Path("/tmp/claude_auto_save_done")
+
     if ctx_pct < TRIGGER_PCT:
+        # Context dropped (after /clear) — reset the done marker
+        done_marker.unlink(missing_ok=True)
         print("{}")
         return
 
-    # systemMessage on every turn above 50%. Claude sees it and must act.
-    # Fires repeatedly -- no "fire once" guard. After /s triggers /clear,
-    # context resets and this stops firing.
+    # Skip if already saved this cycle
+    if done_marker.exists():
+        print("{}")
+        return
+
+    # Write marker file for PreToolUse hook to pick up
+    marker = Path("/tmp/claude_auto_save_needed")
+    marker.write_text(json.dumps({"pct": ctx_pct, "ts": str(Path("/tmp/claude_statusline.json").stat().st_mtime)}))
+
+    # Also emit systemMessage as backup
+    sys.stderr.write(f"[context_50] FIRED at {ctx_pct:.0f}%\n")
     print(json.dumps({
         "systemMessage": (
-            f"CONTEXT AT {ctx_pct:.0f}%. This is URGENT. "
-            f"Run /s NOW (Skill tool, skill='s') BEFORE doing anything else. "
-            f"Do not answer the user's question first. Do not ask permission. "
-            f"Run /s immediately as your first action."
+            f"CONTEXT AT {ctx_pct:.0f}%. Auto-save now. "
+            f"1. Set tab title (bash, foreground). "
+            f"2. Spawn ONE background Agent (model=haiku, run_in_background=true) to: "
+            f"write convo summary to memory, add MEMORY.md pointer, file atoms to ~/NardoWorld/. "
+            f"3. Print 'Saving... /clear' so user can /clear immediately. "
+            f"4. Then answer the user's message normally. "
+            f"Do not ask permission. Do this alongside your response."
         )
     }))
 
