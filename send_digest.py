@@ -29,7 +29,7 @@ BASE_DIR     = Path(__file__).parent
 PERSONAS_DIR = BASE_DIR / "personas"
 TOPIC_CACHE  = BASE_DIR / "topic_cache.json"
 
-MINIMAX_API_KEY = os.environ["MINIMAX_API_KEY"]
+# LLM calls route through llm_client.py (Kimi → fallback chain)
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
@@ -172,9 +172,9 @@ async def main() -> None:
             logger.info("Generating digest: news_module=%s", news_module)
             try:
                 if news_module == "crypto_news":
-                    digest_cache[news_module] = await generate_crypto_digest(MINIMAX_API_KEY)
+                    digest_cache[news_module] = await generate_crypto_digest("")
                 else:
-                    digest_cache[news_module] = await generate_full_digest(MINIMAX_API_KEY)
+                    digest_cache[news_module] = await generate_full_digest("")
             except Exception as e:
                 logger.error("Digest generation failed (%s): %s", news_module, e)
                 continue

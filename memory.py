@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 RECENT_WINDOW = 10    # rolling-window size kept in bot.py's in-memory list
 _TOP_K        = 5     # semantic results injected into system prompt
-_EMBED_MODEL  = "embo-01"
+_EMBED_MODEL  = "embo-01"       # MiniMax embedding — no free alternative yet
 _EMBED_DIM    = 1536
-_CHAT_MODEL   = "MiniMax-M2.5-highspeed"
+_CHAT_MODEL   = None            # resolved at runtime from llm_client
 _DB_PATH      = Path(__file__).parent / "memory.db"
 
 _SCREEN_PROMPT = """\
@@ -144,8 +144,9 @@ class MemoryManager:
     Screening happens once per session when flush_staging() is called (on /clear).
     """
 
-    def __init__(self, client: OpenAI, db_path: Path = _DB_PATH) -> None:
+    def __init__(self, client=None, db_path: Path = _DB_PATH, model_name: str = None) -> None:
         self._client = client
+        self._model = model_name
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
 
@@ -440,7 +441,7 @@ class MemoryManager:
         """Generate 1-2 alternative phrasings of the query via MiniMax."""
         try:
             resp = self._client.chat.completions.create(
-                model=_CHAT_MODEL,
+                model=self._model or "kimi-for-coding",
                 max_tokens=100,
                 messages=[
                     {"role": "user", "content": _EXPAND_PROMPT.format(query=query)},
@@ -467,7 +468,7 @@ class MemoryManager:
         )
         try:
             resp = self._client.chat.completions.create(
-                model=_CHAT_MODEL,
+                model=self._model or "kimi-for-coding",
                 max_tokens=200,
                 messages=[
                     {"role": "system", "content": _SCREEN_PROMPT},

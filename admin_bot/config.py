@@ -65,6 +65,10 @@ _BASE_PROMPT = (
     "Show cost/time estimate before expensive ops. "
     "NEVER restart bots — you ARE admin_bot. "
     "Code changes: git pull first, then add+commit+push. "
+    "NEVER output your internal reasoning, self-evaluation, word counts, or checklist verification. "
+    "Output ONLY the final answer. No 'Let me check...', 'I should make sure...', 'Actually looking at the rules...' etc. "
+    "After completing a task or analysis, ALWAYS end with 2-3 concrete next actions Bernard can take. "
+    "Format: '**Next:**' followed by short actionable items. "
     + _CONTENT_DRAFTS_INSTRUCTION + " "
     "MEMORY INDEX (read relevant files for details):\n" + _MEMORY_INDEX
 )

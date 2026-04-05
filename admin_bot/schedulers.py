@@ -86,11 +86,10 @@ async def _refresh_cookies(context: ContextTypes.DEFAULT_TYPE):
 
         try:
             from bookmark_db import sync_bookmarks, update_taste_summary
-            api_key = os.environ.get("MINIMAX_API_KEY", "")
-            new_count = await sync_bookmarks(api_key)
+            new_count = await sync_bookmarks("")
             if new_count > 0:
                 for cat in ("en", "zh", "ai"):
-                    await update_taste_summary(cat, api_key)
+                    await update_taste_summary(cat, "")
                 log.info("Bookmark sync: %d new, taste summaries updated", new_count)
         except Exception as e:
             log.error("Bookmark sync failed: %s", e)

@@ -19,6 +19,7 @@ from claude_agent_sdk import (
 
 from .config import PROJECT_DIR, SYSTEM_PROMPTS
 from .chat import MODEL_MAP
+from .domains import _load_sessions
 
 log = logging.getLogger("admin")
 
@@ -33,8 +34,12 @@ def _get_lock(domain: str) -> asyncio.Lock:
     return _client_locks[domain]
 
 
-async def _get_or_create_client(domain: str, model: str, cwd: str = None) -> ClaudeSDKClient:
-    """Get existing client or create new one for this domain."""
+async def _get_or_create_client(domain: str, model: str, cwd: str = None, session_key: str = None) -> ClaudeSDKClient:
+    """Get existing client or create new one for this domain.
+
+    If reconnecting after a crash, resumes the saved session_id so
+    Claude retains conversation context.
+    """
     key = f"{domain}:{model}"
 
     if key in _clients:
@@ -56,6 +61,14 @@ async def _get_or_create_client(domain: str, model: str, cwd: str = None) -> Cla
     model_id = MODEL_MAP.get(model, "claude-sonnet-4-6")
     sys_prompt = SYSTEM_PROMPTS.get(domain, "")
 
+    # Try to resume saved session for conversation continuity
+    resume_id = None
+    if session_key:
+        sessions = _load_sessions()
+        resume_id = sessions.get(session_key)
+        if resume_id:
+            log.info("SDK client resuming session %s for %s", resume_id[:12], key)
+
     # Prefer globally installed CLI (npm) over bundled (may be newer)
     import shutil
     global_cli = shutil.which("claude")
@@ -64,6 +77,7 @@ async def _get_or_create_client(domain: str, model: str, cwd: str = None) -> Cla
         model=model_id,
         permission_mode="bypassPermissions",
         system_prompt=sys_prompt if sys_prompt else None,
+        resume=resume_id,
         cwd=cwd or PROJECT_DIR,
         cli_path=global_cli,  # use latest npm-installed CLI if available
         setting_sources=["user", "project"],  # load skills from ~/.claude/skills/

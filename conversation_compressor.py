@@ -14,11 +14,9 @@ import asyncio
 import logging
 from typing import Optional
 
-from openai import OpenAI
-
 logger = logging.getLogger(__name__)
 
-_COMPRESS_MODEL = "MiniMax-M2.5-highspeed"
+_COMPRESS_MODEL = None  # resolved at runtime from llm_client
 _COMPRESS_THRESHOLD = 5  # summarise after this many unsummarised messages accumulate
 _MAX_SUMMARY_TOKENS = 500  # keep summary concise
 
@@ -60,8 +58,9 @@ and context. Same language as the conversation.
 class ConversationCompressor:
     """Per-conversation rolling summary manager."""
 
-    def __init__(self, client: OpenAI) -> None:
+    def __init__(self, client=None, model_name: str = None) -> None:
         self._client = client
+        self._model = model_name
         # conv_key -> running summary text
         self._summaries: dict[tuple, str] = {}
         # conv_key -> how many messages in current conv[] we've already summarised
@@ -173,7 +172,7 @@ class ConversationCompressor:
 
         try:
             resp = self._client.chat.completions.create(
-                model=_COMPRESS_MODEL,
+                model=self._model or "kimi-for-coding",
                 max_tokens=_MAX_SUMMARY_TOKENS,
                 messages=[
                     {"role": "system", "content": _SUMMARY_PROMPT},

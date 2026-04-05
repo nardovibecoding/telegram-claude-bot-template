@@ -3,11 +3,10 @@
 Shared LLM client with automatic fallback chain and parallel cross-check.
 
 Fallback order (chat_completion):
-  1. MiniMax M2.5-highspeed  (primary — fast, cheap)
-  2. Cerebras llama-3.3-70b  (fastest inference)
-  3. Groq llama-3.3-70b      (free tier fallback)
-  4. DeepSeek deepseek-chat   (free tier fallback)
-  5. Gemini 2.5 Flash         (free tier fallback)
+  1. Kimi-for-Coding         (primary — best quality)
+  2. Qwen3-32b via Groq      (fast fallback)
+  3. Cerebras Qwen3-235b     (fastest inference)
+  4. Gemini 2.5 Flash         (free tier fallback)
 
 Parallel cross-check (chat_completion_multi / cross_check):
   All 4 providers in parallel: Cerebras, Gemini, Kimi, Qwen3

@@ -102,11 +102,27 @@ def _parse_step(event):
 
 
 def _clean_result(text: str) -> str:
-    """Strip raw tool call XML and other noise from Claude Code output."""
+    """Strip raw tool call XML, leaked CoT reasoning, and other noise."""
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
     text = re.sub(r'<function_calls>.*?</function_calls>', '', text, flags=re.DOTALL)
     text = re.sub(r'</?tool[^>]*>', '', text)
     text = re.sub(r'</?antml:[^>]*>', '', text)
+
+    # Strip leaked CoT / self-evaluation reasoning (English)
+    # These are internal model reasoning lines that shouldn't reach the user
+    _COT_PATTERNS = [
+        r'^Let me (?:check|refine|make sure|think|verify|review|reconsider|count|re-?read).*$',
+        r'^(?:Actually|Wait|Hmm),? (?:looking at|let me|I (?:should|need|notice)).*$',
+        r'^I should (?:make sure|check|verify|cover|include|mention|note).*$',
+        r'^(?:Checking|Verifying|Counting|Reviewing|Refining|Revising)[\s:].*$',
+        r'^(?:Word count|Character count|Length check)[\s:].*$',
+        r'^- (?:Beyond headline|Cause-effect|Call out missing|No jargon|Am I covering):.*$',
+        r'^The (?:input seems|rules say|instructions say).*$',
+        r'^My draft is (?:about|roughly|approximately).*$',
+    ]
+    _cot_re = re.compile('|'.join(_COT_PATTERNS), re.MULTILINE | re.IGNORECASE)
+    text = _cot_re.sub('', text)
+
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 

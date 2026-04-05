@@ -48,7 +48,7 @@ from conversation_logger import log_message
 from sanitizer import sanitize_external_content
 from llm_client import chat_completion_async, get_primary_client
 
-MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
+# MiniMax removed — all LLM calls route through llm_client.py (Kimi → fallback chain)
 PERSONAS_DIR    = Path(__file__).parent / "personas"
 TOPIC_CACHE     = Path(__file__).parent / "topic_cache.json"
 CLAUDE_SESSIONS_FILE = Path(__file__).parent / "claude_sessions.json"
@@ -319,10 +319,11 @@ def run_persona(persona_id: str) -> None:
     _start_time = _time.time()
 
     _llm_client, _llm_model = get_primary_client()
+    logger.info("Primary LLM client: model=%s", _llm_model)
     if _llm_client is None:
         raise RuntimeError("No LLM provider available — check API keys in .env")
-    mem    = MemoryManager(_llm_client, db_path=db_path)
-    compressor = ConversationCompressor(_llm_client)
+    mem    = MemoryManager(_llm_client, db_path=db_path, model_name=_llm_model)
+    compressor = ConversationCompressor(_llm_client, model_name=_llm_model)
     convs: dict[tuple, list[dict]] = defaultdict(list)
 
     # In-memory topic cache (thread_id str → name str), keyed by group chat_id str
@@ -950,9 +951,9 @@ def run_persona(persona_id: str) -> None:
         await update.message.reply_text(_r("news_loading"))
         try:
             if news_module == "crypto_news":
-                messages = await generate_crypto_digest(MINIMAX_API_KEY)
+                messages = await generate_crypto_digest("")
             else:
-                messages = await generate_full_digest(MINIMAX_API_KEY)
+                messages = await generate_full_digest("")
             plain_texts: list[str] = []
             for msg in messages:
                 if isinstance(msg, dict):
@@ -1000,7 +1001,7 @@ def run_persona(persona_id: str) -> None:
         await update.message.reply_text(_r("tweets_loading"))
         try:
             accounts = list(context.args) if context.args else twitter_accounts
-            messages = await generate_twitter_digest(MINIMAX_API_KEY, accounts)
+            messages = await generate_twitter_digest("", accounts)
             for msg in messages:
                 await context.bot.send_message(chat_id=chat_id, text=msg,
                                                message_thread_id=thread_id)
@@ -1441,7 +1442,7 @@ def run_persona(persona_id: str) -> None:
                 return
             await update.message.reply_text("Running X curation… this may take a few minutes.")
             try:
-                cards = await generate_daily_digest(MINIMAX_API_KEY, lang=xcurate_lang, list_ids=xcurate_lists)
+                cards = await generate_daily_digest("", lang=xcurate_lang, list_ids=xcurate_lists)
                 if not cards:
                     await update.message.reply_text("No picks today.")
                     return
@@ -1481,7 +1482,7 @@ def run_persona(persona_id: str) -> None:
                 return False
             logger.info("Running daily X digest for %d target(s)…", len(targets))
             try:
-                cards = await generate_daily_digest(MINIMAX_API_KEY, lang=xcurate_lang, list_ids=xcurate_lists)
+                cards = await generate_daily_digest("", lang=xcurate_lang, list_ids=xcurate_lists)
             except Exception as e:
                 logger.error("Daily X digest failed: %s", e)
                 await _notify_fail(context.bot, "X Daily Digest", e)
@@ -1581,7 +1582,7 @@ def run_persona(persona_id: str) -> None:
                 return
             await update.message.reply_text("Fetching Reddit top posts…")
             try:
-                cards = await asyncio.to_thread(generate_reddit_digest, reddit_subs, api_key=MINIMAX_API_KEY)
+                cards = await asyncio.to_thread(generate_reddit_digest, reddit_subs, api_key="")
                 if not cards:
                     await update.message.reply_text("No posts found.")
                     return
@@ -1615,7 +1616,7 @@ def run_persona(persona_id: str) -> None:
             thread_id = target.get("thread_id")
             logger.info("Running daily Reddit digest…")
             try:
-                cards = await asyncio.to_thread(generate_reddit_digest, reddit_subs, api_key=MINIMAX_API_KEY)
+                cards = await asyncio.to_thread(generate_reddit_digest, reddit_subs, api_key="")
             except Exception as e:
                 logger.error("Daily Reddit digest failed: %s", e)
                 await _notify_fail(context.bot, "Reddit Digest", e)
@@ -1692,9 +1693,9 @@ def run_persona(persona_id: str) -> None:
             logger.info("Running daily news digest (%s) for %d target(s)…", news_module, len(targets))
             try:
                 if news_module == "crypto_news":
-                    messages = await generate_crypto_digest(MINIMAX_API_KEY)
+                    messages = await generate_crypto_digest("")
                 else:
-                    messages = await generate_full_digest(MINIMAX_API_KEY)
+                    messages = await generate_full_digest("")
             except Exception as e:
                 logger.error("Daily news digest failed: %s", e)
                 await _notify_fail(context.bot, f"News Digest ({news_module})", e)

@@ -372,7 +372,7 @@ async def _run_sdk_task(
                         except Exception:
                             pass
 
-                client = await _get_or_create_client(domain, chosen_model, cwd)
+                client = await _get_or_create_client(domain, chosen_model, cwd, session_key=key)
                 context.bot_data[proc_key] = client
 
                 result = ""
@@ -535,6 +535,11 @@ async def _run_sdk_task(
         if not first_activity_event.is_set():
             first_activity_event.set()
 
+        # Use streamed text chunks as result if SDK didn't return a result
+        if not result and _text_chunks:
+            result = _clean_result("".join(_text_chunks))
+            log.info("_run_sdk_task: using streamed text as result (%d chars)", len(result))
+
         if not result:
             if step_count > 0:
                 log.info("_run_sdk_task: no text output but %d steps completed — marking done", step_count)
@@ -591,16 +596,25 @@ async def _run_sdk_task(
             _team, _role = TEAM_DOMAINS[domain]
             save_handoff(_team, _role, result)
 
-        # Background mode: always send as NEW message for push notification
+        # Background mode: send result as NEW message for push notification
         if bg_flag[0]:
-            if _live_msg[0]:
-                try:
-                    await _live_msg[0].delete()
-                except Exception:
-                    pass
             if result:
-                header = f"✅ Background task done ({time_str}):\n\n"
-                await _send_msg(bot, chat_id, header + result, thread_id=reply_thread)
+                # If live msg already shows this content, just finalize it
+                if _live_msg[0] and _live_text[0] and result.strip() == _live_text[0].strip():
+                    # Content already visible — send short notification + keep live msg
+                    await _send_msg(bot, chat_id, f"✅ Background task done ({time_str}).", thread_id=reply_thread)
+                else:
+                    # New/different result — delete old live msg, send full result
+                    if _live_msg[0]:
+                        try:
+                            await _live_msg[0].delete()
+                        except Exception:
+                            pass
+                    header = f"✅ Background task done ({time_str}):\n\n"
+                    await _send_msg(bot, chat_id, header + result, thread_id=reply_thread)
+            elif _live_msg[0]:
+                # No result but live msg exists — keep it, just notify done
+                await _send_msg(bot, chat_id, f"✅ Background task done ({time_str}).", thread_id=reply_thread)
         else:
             # Foreground: edit live message or send inline
             if _live_msg[0] and result:
@@ -618,6 +632,13 @@ async def _run_sdk_task(
                         await _send_msg(bot, chat_id, result, thread_id=reply_thread)
             elif result:
                 await _send_msg(bot, chat_id, result, thread_id=reply_thread)
+
+        # Save bot reply to conversation history for continuity
+        if result and not _failed:
+            _conv_key = f"conv_history_{chat_id}:{thread_id or 0}"
+            _conv = context.bot_data.get(_conv_key, [])
+            _conv.append((_time.time(), "bot", result[:300]))
+            context.bot_data[_conv_key] = _conv[-15:]
 
         # Fire-and-forget cognitive processing
         if result and not _failed:
@@ -822,6 +843,23 @@ async def claude_bridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not prompt:
         return
+
+    # Inject conversation history for continuity on short follow-ups
+    _now = _time.time()
+    conv_key = f"conv_history_{chat_id}:{thread_id or 0}"
+    conv_history = context.bot_data.get(conv_key, [])
+    # Prune old entries (>2h)
+    conv_history = [(ts, role, txt) for ts, role, txt in conv_history if _now - ts < 7200]
+    if conv_history and len(prompt.strip()) < 80:
+        # Short follow-up — inject last few exchanges so model has context
+        history_lines = []
+        for _, role, txt in conv_history[-6:]:
+            label = "Bernard" if role == "user" else "You"
+            history_lines.append(f"{label}: {txt}")
+        prompt = f"[Recent conversation:]\n" + "\n".join(history_lines) + f"\n\n[Current message:]\nBernard: {prompt}"
+    # Save user message to conversation history
+    conv_history.append((_now, "user", prompt[:300] if len(prompt.strip()) >= 80 else prompt.strip()))
+    context.bot_data[conv_key] = conv_history[-15:]
 
     # Inject recent memory context
     recent_memory = _get_recent_memories(3)
