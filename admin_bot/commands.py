@@ -266,27 +266,10 @@ async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.args[0].lower()
 
     if name == "admin":
-        killed = 0
-        for k, v in list(context.bot_data.items()):
-            if k.startswith("claude_proc_"):
-                if hasattr(v, 'interrupt'):
-                    # SDK client — interrupt running task
-                    try:
-                        await v.interrupt()
-                        killed += 1
-                    except Exception:
-                        pass
-                elif hasattr(v, 'returncode') and v.returncode is None:
-                    # Legacy subprocess
-                    v.kill()
-                    killed += 1
-        # Also kill any orphan subprocess-based claude processes
-        kill = await asyncio.create_subprocess_exec("pkill", "-f", "claude.*-p.*--verbose")
-        await kill.wait()
-        clear_all_locks()
-        from .sdk_client import sdk_disconnect_all
-        await sdk_disconnect_all()
-        await update.message.reply_text(f"🛑 Killed {killed} stuck task(s). Admin bot ready.")
+        await update.message.reply_text("\U0001f504 Restarting admin bot.. back in 5s.")
+        import signal
+        await asyncio.sleep(1)
+        os.kill(os.getpid(), signal.SIGTERM)
         return
 
     if name not in BOTS:
@@ -2136,3 +2119,128 @@ async def cmd_checkpoint_view(update: Update, context: ContextTypes.DEFAULT_TYPE
     with open(latest) as _f:
         text = _f.read()
     await update.message.reply_text(f"📋 Latest checkpoint:\n\n{text[:4000]}")
+
+
+# ── /sh — run shell commands on VPS from Telegram ───────────────────────
+
+_SH_BLOCKED = {"rm -rf /", "mkfs", "dd if=", "> /dev/sd", "shutdown", "reboot",
+               "passwd", "userdel", ":(){ :", "fork bomb"}
+
+@admin_only
+async def cmd_sh(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/sh <command> — run a shell command on VPS and return output."""
+    if not context.args:
+        await update.message.reply_text(
+            "Usage: /sh <command>\n"
+            "Examples:\n"
+            "  /sh git log --oneline -3\n"
+            "  /sh systemctl restart telegram-bots\n"
+            "  /sh df -h\n"
+            "  /sh tail -20 /tmp/start_all.log"
+        )
+        return
+
+    cmd = " ".join(context.args)
+
+    # Safety: block destructive patterns
+    cmd_lower = cmd.lower()
+    for blocked in _SH_BLOCKED:
+        if blocked in cmd_lower:
+            await update.message.reply_text(f"⛔ Blocked: {blocked}")
+            return
+
+    await update.message.reply_text(f"⚡ Running: <code>{html_escape(cmd)}</code>", parse_mode="HTML")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bash", "-c", cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(PROJECT_DIR),
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+        output = stdout.decode(errors="replace").strip()
+
+        if not output:
+            output = "(no output)"
+
+        # Cap at TG message limit
+        if len(output) > 4000:
+            output = output[:4000] + "\n… (truncated)"
+
+        exit_icon = "✅" if proc.returncode == 0 else "❌"
+        await update.message.reply_text(
+            f"{exit_icon} Exit {proc.returncode}:\n<pre>{html_escape(output)}</pre>",
+            parse_mode="HTML",
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await update.message.reply_text("⏱ Command timed out (30s limit).")
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Error: {html_escape(str(e))}")
+
+
+async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reply to any message with /eli5 to get a simple explanation."""
+    reply_msg = update.message.reply_to_message
+    if not reply_msg:
+        await update.message.reply_text("💡 Reply to a message with /eli5 to get a simple explanation.")
+        return
+
+    source_text = reply_msg.text or reply_msg.caption or ""
+    if not source_text.strip():
+        await update.message.reply_text("⚠\ufe0f That message has no text to explain.")
+        return
+
+    # Fetch linked articles for deeper context
+    article_context = ""
+    urls = re.findall(r"https?://[^\s<>\"]+", source_text)
+    if urls:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as http:
+                for url in urls[:2]:
+                    resp = await http.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    if resp.status_code == 200:
+                        html = resp.text[:20000]
+                        html = re.sub(r"<(script|style)[^>]*>.*?</\\1>", "", html, flags=re.DOTALL)
+                        html = re.sub(r"<[^>]+>", " ", html)
+                        html = re.sub(r"\\s+", " ", html).strip()
+                        if len(html) > 200:
+                            article_context += f"\n\n--- Article from {url} ---\n{html[:5000]}"
+        except Exception:
+            pass
+
+    focus = " ".join(context.args) if context.args else ""
+    await update.message.reply_text("\U0001f9e0 Let me break that down\u2026")
+    try:
+        from .sdk_client import sdk_query
+        eli5_system = (
+            "You are a sharp analyst who explains complex news to a smart non-technical friend. "
+            "When given a news item, break it down:\n\n"
+            "1. WHAT happened (1-2 sentences, plain language)\n"
+            "2. WHY -- the cause. What led to this? What problem or incentive drove it?\n"
+            "3. SO WHAT -- the real implications. Who wins, who loses? What changes downstream?\n"
+            "4. WATCH FOR -- what happens next, and when we will know if this matters\n\n"
+            "Rules:\n"
+            "- Go beyond the headline. News often skips the logic chain -- you fill it in.\n"
+            "- Explain cause -> effect, not just the event.\n"
+            "- If the news is vague or hype, say so. Call out what is missing.\n"
+            "- Use analogies when they help. No jargon.\n"
+            "- Keep it under 300 words but be thorough on the WHY and SO WHAT.\n"
+            "- Match language of source (Chinese->Chinese, English->English)."
+        )
+        full_text = source_text + article_context
+        user_prompt = eli5_system + "\n\nExplain this:\n\n" + full_text[:8000]
+        if focus:
+            user_prompt += f"\n\nFocus on: {focus}"
+
+        reply = await sdk_query(user_prompt, domain="eli5", model="haiku")
+        if len(reply) <= 4096:
+            await update.message.reply_text(reply)
+        else:
+            for i in range(0, len(reply), 4096):
+                await update.message.reply_text(reply[i : i + 4096])
+    except Exception as e:
+        log.error("eli5 error: %s", e)
+        await update.message.reply_text("\u26a0\ufe0f Something went wrong. Check logs.")

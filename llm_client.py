@@ -10,7 +10,7 @@ Fallback order (chat_completion):
   5. Gemini 2.5 Flash         (free tier fallback)
 
 Parallel cross-check (chat_completion_multi / cross_check):
-  All 6 providers in parallel: MiniMax, Cerebras, DeepSeek, Gemini, Kimi K2, Qwen3
+  All 4 providers in parallel: Cerebras, Gemini, Kimi, Qwen3
 
 Usage:
     from llm_client import chat_completion, chat_completion_multi, cross_check
@@ -43,23 +43,11 @@ logger = logging.getLogger(__name__)
 # ── Provider registry ────────────────────────────────────────────────────────
 
 PROVIDERS = {
-    "minimax": {
-        "name": "MiniMax-M2.7",
-        "api_key_env": "MINIMAX_API_KEY",
-        "base_url": "https://api.minimaxi.com/v1",
-        "model": "MiniMax-M2.7-highspeed",
-    },
     "cerebras": {
-        "name": "Cerebras-Llama-3.3-70b",
+        "name": "Cerebras-Qwen3-235b",
         "api_key_env": "CEREBRAS_API_KEY",
         "base_url": "https://api.cerebras.ai/v1",
-        "model": "llama-3.3-70b",
-    },
-    "deepseek": {
-        "name": "DeepSeek-chat",
-        "api_key_env": "DEEPSEEK_API_KEY",
-        "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "qwen-3-235b-a22b-instruct-2507",
     },
     "gemini": {
         "name": "Gemini-2.5-Flash",
@@ -83,7 +71,7 @@ PROVIDERS = {
 }
 
 # Fallback chain order for chat_completion (single-model path)
-_FALLBACK_CHAIN = ["qwen", "kimi", "minimax", "cerebras", "deepseek", "gemini"]
+_FALLBACK_CHAIN = ["qwen", "kimi", "cerebras", "gemini"]
 
 # Errors that trigger immediate fallback (no retry on same model)
 _FATAL_PATTERNS = [
@@ -174,7 +162,7 @@ def chat_completion(
     """
     Call LLM with automatic fallback chain.
 
-    Chain: MiniMax -> Cerebras -> Kimi K2 -> DeepSeek -> Gemini
+    Chain: Qwen -> Kimi -> Cerebras -> Gemini
 
     Parameters
     ----------
@@ -318,10 +306,7 @@ async def chat_completion_multi(
     -------
     dict with keys for each model name and an "errors" dict:
         {
-            "minimax": "response...",
-            "cerebras": "response...",
-            "deepseek": "response...",
-            "gemini": "response...",
+                                                "gemini": "response...",
             "kimi": "response...",
             "qwen": "response...",
             "errors": {"model_name": "error message"}

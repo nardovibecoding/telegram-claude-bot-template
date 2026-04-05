@@ -925,6 +925,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ("daliu", "\u5927\u5289", "run_bot.py daliu", ".digest_sent_news_daliu"),
             ("sbf", "SBF", "run_bot.py sbf", ".digest_sent_news_sbf"),
             ("reddit", "Reddit", "run_bot.py reddit", ".digest_sent_reddit_reddit"),
+            ("claudegpt", "ClaudeGPT", "run_bot.py claudegpt", None),
         ]
         restart_btns = []
         for bot_id, label, pattern, news_flag in bot_defs:
@@ -942,25 +943,30 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     sent = os.path.exists(fp) and open(fp).read().strip() == today_str
                 except Exception:
                     sent = False
-                extra = " (+ news \u2705)" if sent else " (+ news \u274c)"
+                extra = " (dg \u2705)" if sent else " (dg \u274c)"
             lines.append(f"{icon} {label}{extra}")
             if bot_id != "admin":
                 btn_lbl = f"\U0001f504 {label}" if alive else f"\u25b6\ufe0f {label}"
                 restart_btns.append(InlineKeyboardButton(btn_lbl, callback_data=f"panel:restart:{bot_id}"))
 
-        x_flags = [".digest_sent_x_twitter", ".digest_sent_x_xcn",
-                   ".digest_sent_x_xai", ".digest_sent_x_xniche"]
-        x_sent = 0
-        for xf in x_flags:
-            fp = os.path.join(PROJECT_DIR, xf)
+        # Digest-only channels (no bot process)
+        dg_defs = [
+            ("\U0001f4e1 Twitter", ".digest_sent_x_twitter"),
+            ("\U0001f4e1 XCN", ".digest_sent_x_xcn"),
+            ("\U0001f4e1 xAI", ".digest_sent_x_xai"),
+            ("\U0001f4e1 xNiche", ".digest_sent_x_xniche"),
+            ("\U0001f399 Podcast CN", ".podcast_digest_sent"),
+            ("\U0001f399 Podcast EN", ".podcast_en_digest_sent"),
+            ("\U0001f4fa YouTube", ".youtube_digest_sent"),
+        ]
+        for dg_label, dg_flag in dg_defs:
+            fp = os.path.join(PROJECT_DIR, dg_flag)
             try:
-                if os.path.exists(fp) and open(fp).read().strip() == today_str:
-                    x_sent += 1
+                sent = os.path.exists(fp) and open(fp).read().strip() == today_str
             except Exception:
-                pass
-        x_icon = "\U0001f7e2" if x_sent == 4 else "\U0001f7e1" if x_sent > 0 else "\U0001f534"
-        x_label = "\u2705" if x_sent == 4 else f"{x_sent}/4"
-        lines.append(f"{x_icon} X Digest \u2192 4ch {x_label}")
+                sent = False
+            dg_icon = "\u2705" if sent else "\u274c"
+            lines.append(f"{dg_label} (dg {dg_icon})")
 
         disk_pct = "?"
         mem_pct = "?"
@@ -998,9 +1004,9 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(sep)
 
         rerun_btns = [
-            InlineKeyboardButton("\U0001f504 X Digest", callback_data="panel:rerun:twitter"),
-            InlineKeyboardButton("\U0001f504 News", callback_data="panel:rerun:daliu"),
-            InlineKeyboardButton("\U0001f504 Reddit", callback_data="panel:rerun:reddit"),
+            InlineKeyboardButton("\U0001f504 X dg", callback_data="panel:rerun:twitter"),
+            InlineKeyboardButton("\U0001f504 News dg", callback_data="panel:rerun:daliu"),
+            InlineKeyboardButton("\U0001f504 Reddit dg", callback_data="panel:rerun:reddit"),
         ]
         kb_rows = []
         if restart_btns:
@@ -1156,9 +1162,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("\U0001f4cb Queue", callback_data="panel:queue"),
                 InlineKeyboardButton("\U0001f4cb Checkpoint", callback_data="panel:checkpoint"),
             ],
-            [
-                InlineKeyboardButton("\U0001f504 Refresh", callback_data="panel:content"),
-                InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:back"),
+            [                InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:back"),
             ],
         ])
         try:
@@ -1190,7 +1194,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         except Exception as e:
             text = f"\u274c {e}"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:content")]])
+        kb = InlineKeyboardMarkup([[]])
         try:
             await query.edit_message_text(text[:4000], reply_markup=kb)
         except Exception:
@@ -1215,7 +1219,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text = "\n".join(lines)
         except Exception as e:
             text = f"ops-guard-mcp unavailable: {e}"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:content")]])
+        kb = InlineKeyboardMarkup([[]])
         try:
             await query.edit_message_text(text[:4000], reply_markup=kb)
         except Exception:
@@ -1237,7 +1241,7 @@ async def handle_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text = f"\U0001f4cb Latest checkpoint:\n\n{open(latest).read()}"
         except Exception as e:
             text = f"\u274c {e}"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("\u2b05\ufe0f Back", callback_data="panel:content")]])
+        kb = InlineKeyboardMarkup([[]])
         try:
             await query.edit_message_text(text[:4000], reply_markup=kb)
         except Exception:
@@ -1787,7 +1791,7 @@ async def handle_model_switch(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def handle_tweetdraft(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Draft a tweet from a tweet idea. callback_data: tweetdraft:{key}"""
+    """Draft a tweet from a tweet idea using scorer + feedback loop."""
     query = update.callback_query
     if query.from_user.id != ADMIN_USER_ID:
         await query.answer("Not authorized")
@@ -1812,48 +1816,106 @@ async def handle_tweetdraft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     title = item.get("title", "")
     summary = item.get("summary", "")
     url = item.get("url", "")
-    source_count = item.get("source_count", 1)
-    item_type = item.get("type", "news")
 
-    context_line = (
-        f"{source_count} sources covering this story" if item_type == "news"
-        else f"New AI tool/pattern from evolution feed"
-    )
+    # Load feedback context (winners + lessons)
+    feedback_block = ""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(PROJECT_DIR, "scripts", "x-tweet"))
+        from feedback_loop import format_prompt_block
+        feedback_block = format_prompt_block()
+    except Exception:
+        pass
 
-    prompt = f"""Draft a tweet about this topic for @<github-user> (vibecoding journey, builder mindset, casual-confident tone).
+    prompt = f"""Draft a tweet about this topic for @<github-user>.
+
+Voice: vibecoding journey, builder who ships real things, casual-confident, slightly irreverent.
+{feedback_block}
 
 Topic: {title}
-Context: {context_line}
 {f'Summary: {summary}' if summary else ''}
-{f'URL: {url}' if url else ''}
+{f'Source: {url}' if url else ''}
 
 Rules:
-- Max 280 chars
+- Sweet spot 180-400 chars (X Premium, max 4000)
 - No em dashes, use commas or ".."
-- No hashtags unless genuinely needed (max 1)
+- No exclamation marks
+- Max 1 hashtag, only if genuinely needed
+- Lead with a hook: tension, number, or short punchy line
 - Sound human, not like an AI announcement
-- First-person perspective as a builder/developer
-- Hook in first line
+- First-person perspective as a builder
+- A stranger with zero context must understand it
 
 Return ONLY the tweet text, nothing else."""
 
-    try:
-        draft = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: chat_completion([{"role": "user", "content": prompt}])
-        )
-    except Exception as e:
-        log.error("Tweet draft LLM failed: %s", e)
-        await query.message.reply_text(f"Draft failed: {e}")
+    status_msg = await query.message.reply_text("\U0001f9e0 Drafting + scoring...")
+
+    best_draft = None
+    best_score = 0
+    attempts = []
+
+    for attempt in range(3):
+        try:
+            draft = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: chat_completion([{"role": "user", "content": prompt}])
+            )
+            draft = draft.strip().strip('"').strip("'")
+        except Exception as e:
+            log.error("Tweet draft LLM failed: %s", e)
+            continue
+
+        # Score it
+        try:
+            from tweet_scorer import score_tweet
+            result = score_tweet(draft)
+            score = result["score"]
+        except Exception:
+            score = 50  # fallback if scorer fails
+
+        attempts.append((draft, score))
+        if score > best_score:
+            best_score = score
+            best_draft = draft
+
+        # Good enough, stop iterating
+        if score >= 75:
+            break
+
+        # Add hint to prompt for next attempt
+        try:
+            hint = result.get("rewrite_hint", "")
+            if hint:
+                prompt += f"\n\nPrevious draft scored {score}/100. Fix: {hint}"
+        except Exception:
+            pass
+
+    if not best_draft:
+        await status_msg.edit_text("\u26a0\ufe0f Draft failed after 3 attempts.")
         return
 
-    draft = draft.strip().strip('"')
-    char_count = len(draft)
+    # Build score breakdown
+    score_line = f"Score: {best_score}/100"
+    if best_score >= 85:
+        score_line += " \u2705 Ready to post"
+    elif best_score >= 70:
+        score_line += " \U0001f7e1 Light polish needed"
+    else:
+        score_line += " \U0001f534 Needs work"
+
+    char_count = len(best_draft)
+    attempts_str = " \u2192 ".join(f"{s}" for _, s in attempts)
 
     reply = (
-        f"📝 <b>Tweet draft</b> ({char_count}/280)\n\n"
-        f"{draft}"
+        f"\U0001f4dd <b>Tweet draft</b> ({char_count} chars)\n\n"
+        f"{best_draft}\n\n"
+        f"{score_line}\n"
+        f"Attempts: {attempts_str}\n"
     )
     if url:
-        reply += f"\n\n<i>Source: {url}</i>"
+        reply += f"\n<i>Source: {url}</i>"
 
-    await query.message.reply_text(reply, parse_mode="HTML")
+    try:
+        await status_msg.edit_text(reply, parse_mode="HTML")
+    except Exception:
+        await query.message.reply_text(reply, parse_mode="HTML")
+

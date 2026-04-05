@@ -24,6 +24,7 @@ from .commands import (
     cmd_autoreplyon, cmd_autoreplyoff, cmd_autolist,
     cmd_bg, cmd_bgkill,
     cmd_content, cmd_draft, cmd_checkpoint_view,
+    cmd_sh, cmd_eli5,
 )
 from .bridge import claude_bridge
 from .callbacks import (
@@ -105,8 +106,7 @@ def main():
         from .config import VERSION_STR
         try:
             await application.bot.send_message(
-                chat_id=PERSONAL_GROUP,
-                message_thread_id=_HEARTBEAT_THREAD,
+                chat_id=ADMIN_USER_ID,
                 text=f"🟧 Admin bot restarted ({VERSION_STR})\n<code>{_t.strftime('%H:%M:%S HKT', _t.gmtime(_t.time() + 8*3600))}</code>",
                 parse_mode="HTML",
             )
@@ -163,6 +163,8 @@ def main():
     app.add_handler(CommandHandler("content", cmd_content))
     app.add_handler(CommandHandler("draft", cmd_draft))
     app.add_handler(CommandHandler("checkpoint", cmd_checkpoint_view))
+    app.add_handler(CommandHandler("sh", cmd_sh))
+    app.add_handler(CommandHandler("eli5", cmd_eli5))
     # Auto-reply controls (short + long names)
     app.add_handler(CommandHandler("autoon", cmd_autoreplyon))
     app.add_handler(CommandHandler("autooff", cmd_autoreplyoff))

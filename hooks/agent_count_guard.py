@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block Agent spawns > 1 unless user specified count."""
+"""PreToolUse hook: ask approval for >1 agent, hard block at >3."""
 import json
 import sys
 import time
 from pathlib import Path
 
 COUNTER_FILE = Path("/tmp/claude_agent_spawn_counter.json")
-# Reset counter if last spawn was more than 5 seconds ago (new turn)
-TURN_TIMEOUT = 5
+TURN_TIMEOUT = 5  # reset counter after 5s gap (new turn)
+MAX_AGENTS = 3    # hard cap
 
 
 def main():
@@ -29,7 +29,6 @@ def main():
     if COUNTER_FILE.exists():
         try:
             counter = json.loads(COUNTER_FILE.read_text())
-            # Reset if stale (new turn)
             if now - counter.get("ts", 0) > TURN_TIMEOUT:
                 counter = {"count": 0, "ts": now}
         except (json.JSONDecodeError, OSError):
@@ -39,18 +38,31 @@ def main():
     counter["ts"] = now
     COUNTER_FILE.write_text(json.dumps(counter))
 
-    if counter["count"] > 1:
-        # Ask user for confirmation instead of hard block
+    if counter["count"] > MAX_AGENTS:
+        # Hard block above 3
         result = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
-                "permissionDecisionReason": f"Already spawning {counter['count'] - 1} agent(s). Allow another? ({counter['count']} total)",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": f"Hard cap: {MAX_AGENTS} agents max. Currently at {counter['count']}.",
             }
         }
         print(json.dumps(result))
         return
 
+    if counter["count"] > 1:
+        # Ask user for approval for 2nd and 3rd agent
+        result = {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "ask",
+                "permissionDecisionReason": f"Spawning agent #{counter['count']} of {MAX_AGENTS} max. Allow?",
+            }
+        }
+        print(json.dumps(result))
+        return
+
+    # First agent — always allowed
     print("{}")
 
 

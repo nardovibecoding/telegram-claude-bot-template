@@ -1,0 +1,17 @@
+{
+  "patterns": [],
+  "scorer_adjustments": {
+    "hook_weight": 25,
+    "specificity_weight": 20,
+    "voice_weight": 20,
+    "rhythm_weight": 15,
+    "stranger_weight": 10,
+    "length_weight": 10,
+    "length_sweet_spot": [180, 400]
+  },
+  "last_updated": null,
+  "sources": {
+    "liked_tweets_analyzed": 0,
+    "engagement_reviews": 0
+  }
+}

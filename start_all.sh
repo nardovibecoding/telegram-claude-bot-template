@@ -66,6 +66,7 @@ set -m
 run_with_restart "大劉"      python run_bot.py daliu &
 run_with_restart "SBF"       python run_bot.py sbf &
 run_with_restart "Reddit"    python run_bot.py reddit &
+run_with_restart "ClaudeGPT"  python run_bot.py claudegpt &
 # X bots (twitter/xcn/xai/xniche) consolidated — digests via cron send_xdigest.py
 run_with_restart "Admin"     python admin_bot.py &
 # Edwin now runs as Claude Code + TG plugin (separate tmux session "edwin")

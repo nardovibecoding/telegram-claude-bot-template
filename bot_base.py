@@ -1,3 +1,4 @@
+import re
 # Copyright (c) 2026 Nardo. AGPL-3.0 — see LICENSE
 """
 Multi-persona Telegram bot base.
@@ -1333,6 +1334,7 @@ def run_persona(persona_id: str) -> None:
         else:
             await update.message.reply_text("⚠️ Admin bot 冇搵到進程。")
 
+
     app.add_handler(CommandHandler("restart_admin", restart_admin))
     app.add_handler(CommandHandler("register",    register))
     app.add_handler(CommandHandler("start",       start))
@@ -1341,6 +1343,7 @@ def run_persona(persona_id: str) -> None:
     app.add_handler(CommandHandler("subscribe",   subscribe))
     app.add_handler(CommandHandler("unsubscribe", unsubscribe))
     app.add_handler(CommandHandler("news",        news_command))
+
     app.add_handler(CommandHandler("menu",        cmd_menu))
     app.add_handler(CallbackQueryHandler(handle_menu_callback, pattern=r"^pmenu:"))
     _cmd_dispatch.update({
