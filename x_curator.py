@@ -21,8 +21,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from openai import OpenAI
-
+from llm_client import chat_completion
 from sanitizer import sanitize_external_content
 from utils import strip_think
 from x_feedback import get_preference_prompt
@@ -835,12 +834,10 @@ async def ai_curate(tweets: list[dict], api_key: str, lang: str | None = None) -
     preferences = get_preference_prompt()
     capped = tweets[:100]
 
-    # Split into batches of 25 to avoid MiniMax timeout on large prompts
     batch_size = 25
     batches = [capped[i:i + batch_size] for i in range(0, len(capped), batch_size)]
     logger.info("AI curation: %d tweets in %d batches", len(capped), len(batches))
 
-    client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1", timeout=90)
     loop = asyncio.get_event_loop()
     all_picks = []
 
@@ -850,23 +847,10 @@ async def ai_curate(tweets: list[dict], api_key: str, lang: str | None = None) -
         prompt = _build_curation_prompt(batch, preferences, lang=lang)
 
         def _call(p=prompt):
-            import time
-            for attempt in range(1, 4):
-                try:
-                    resp = client.chat.completions.create(
-                        model="MiniMax-M2.5-highspeed",
-                        max_tokens=4000,
-                        messages=[{"role": "user", "content": p}],
-                    )
-                    return resp.choices[0].message.content.strip()
-                except Exception as e:
-                    if attempt < 3:
-                        wait = attempt * 5
-                        logger.warning("AI curation batch %d retry %d/3 in %ds: %s",
-                                       batch_idx, attempt, wait, e)
-                        time.sleep(wait)
-                    else:
-                        raise
+            return chat_completion(
+                messages=[{"role": "user", "content": p}],
+                max_tokens=4000,
+            )
 
         try:
             raw = await loop.run_in_executor(None, _call)

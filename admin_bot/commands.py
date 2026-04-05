@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 from html import escape as html_escape
@@ -2182,6 +2183,10 @@ async def cmd_sh(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Reply to any message with /eli5 to get a simple explanation."""
+    log.info("eli5 triggered: chat=%s thread=%s user=%s",
+             update.effective_chat.id if update.effective_chat else "?",
+             update.message.message_thread_id if update.message else "?",
+             update.effective_user.id if update.effective_user else "?")
     reply_msg = update.message.reply_to_message
     if not reply_msg:
         await update.message.reply_text("💡 Reply to a message with /eli5 to get a simple explanation.")
@@ -2216,19 +2221,19 @@ async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         from llm_client import chat_completion_async
         eli5_system = (
-            "You are a sharp analyst who explains complex news to a smart non-technical friend. "
-            "When given a news item, break it down:\n\n"
-            "1. WHAT happened (1-2 sentences, plain language)\n"
-            "2. WHY -- the cause. What led to this? What problem or incentive drove it?\n"
-            "3. SO WHAT -- the real implications. Who wins, who loses? What changes downstream?\n"
-            "4. WATCH FOR -- what happens next, and when we will know if this matters\n\n"
+            "Sharp analyst explaining news to a smart friend. Output the analysis ONLY. "
+            "No reasoning, no 'let me think', no meta-commentary.\n\n"
+            "For EACH item, use this exact format:\n\n"
+            "**WHAT**: 1-2 sentences. Plain language.\n"
+            "**WHY**: Cause-effect chain. What led here, what incentive drove it.\n"
+            "**SO WHAT**: Who wins, who loses, what changes downstream.\n"
+            "**WATCH**: What happens next. Concrete signal to track.\n\n"
             "Rules:\n"
-            "- Go beyond the headline. News often skips the logic chain -- you fill it in.\n"
-            "- Explain cause -> effect, not just the event.\n"
-            "- If the news is vague or hype, say so. Call out what is missing.\n"
-            "- Use analogies when they help. No jargon.\n"
-            "- Keep it under 300 words but be thorough on the WHY and SO WHAT.\n"
-            "- Match language of source (Chinese->Chinese, English->English)."
+            "- ~80 words per item. Never exceed 100.\n"
+            "- Go beyond the headline. Fill in the logic the source skipped.\n"
+            "- If vague or hype, say so.\n"
+            "- No jargon. Analogies welcome.\n"
+            "- Match source language (Chinese->Chinese, English->English)."
         )
         full_text = source_text + article_context
         user_prompt = full_text[:8000]

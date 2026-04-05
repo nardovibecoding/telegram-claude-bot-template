@@ -67,6 +67,7 @@ PROVIDERS = {
         "api_key_env": "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
         "model": "qwen/qwen3-32b",
+        "no_think": True,  # append /no_think to system prompt to disable CoT
     },
 }
 
@@ -89,11 +90,12 @@ def _is_fatal(error_str: str) -> bool:
 
 
 def _strip_think(text: str) -> str:
-    """Remove <think>...</think> and /think patterns from LLM output.
+    """Remove <think>...</think>, /think patterns, and plain-text CoT from LLM output.
 
     Handles:
     - Standard <think>...</think> blocks
     - Qwen-style /think patterns
+    - Plain-text reasoning leaked as body text (no tags)
     If stripping leaves empty (some models put everything in think), extract think content.
     """
     # Strip standard <think>...</think> blocks
@@ -104,7 +106,10 @@ def _strip_think(text: str) -> str:
     stripped = re.sub(r"^.*?/think\s*\n?", "", stripped, flags=re.DOTALL).strip() if "/think" in stripped else stripped
 
     if stripped:
-        return stripped
+        # Strip plain-text CoT that leaked without tags
+        stripped = _strip_plaintext_cot(stripped)
+        if stripped:
+            return stripped
 
     # If stripping left empty, extract from think blocks
     match = re.search(r"<think>(.*?)</think>", text, flags=re.DOTALL)
@@ -115,6 +120,54 @@ def _strip_think(text: str) -> str:
         return match.group(1).strip()
 
     return text.strip()
+
+
+# Plain-text CoT patterns — reasoning that leaks without <think> tags
+_PLAINTEXT_COT_PATTERNS = [
+    r"^The user wants me to\b",
+    r"^The user is asking\b",
+    r"^I need to\b.*?(?:analyze|check|verify|think|consider|understand|respond)",
+    r"^I should\b.*?(?:analyze|check|verify|think|consider|respond|structure|keep)",
+    r"^Let me\b.*?(?:analyze|check|think|draft|refine|structure|break|consider|verify|make sure)",
+    r"^Looking at\b.*?(?:the input|the content|this|the request|the question)",
+    r"^(?:First|Now),? (?:I need|I should|let me|I will|I'll)\b",
+    r"^(?:OK|Okay|Alright),? (?:so |let me |I need |I should )",
+    r"^Wait,? (?:I need|let me|I should)\b",
+    r"^(?:My|The) (?:draft|analysis|response|answer) (?:is|should|would|could)\b",
+    r"^I (?:can see|notice|observe) that\b",
+    r"^(?:Actually|Hmm),? (?:looking|thinking|let me)\b",
+    r"^This (?:appears|seems|looks) to be\b.*?(?:asking|about|requesting)",
+]
+_PLAINTEXT_COT_RE = [re.compile(p, re.IGNORECASE) for p in _PLAINTEXT_COT_PATTERNS]
+
+
+def _strip_plaintext_cot(text: str) -> str:
+    """Strip plain-text CoT reasoning that leaked without think tags.
+
+    Strategy: scan line by line from the top. If leading lines match CoT
+    patterns, strip them. Stop at first non-CoT line. This preserves the
+    actual answer which typically follows the reasoning block.
+    """
+    lines = text.split("\n")
+    first_real_line = 0
+
+    for i, line in enumerate(lines):
+        stripped_line = line.strip()
+        if not stripped_line:
+            continue
+        if any(rx.search(stripped_line) for rx in _PLAINTEXT_COT_RE):
+            first_real_line = i + 1
+            continue
+        # Stop at first non-CoT, non-empty line
+        break
+
+    if first_real_line > 0:
+        result = "\n".join(lines[first_real_line:]).strip()
+        if result:
+            logger.info("Stripped %d lines of plain-text CoT", first_real_line)
+            return result
+
+    return text
 
 
 def _get_client(provider_key: str, timeout: int = 30):
@@ -187,12 +240,20 @@ def chat_completion(
 
         model_name = cfg["name"]
 
+        # Inject /no_think for models that support it (Qwen3)
+        call_messages = messages
+        if cfg.get("no_think") and call_messages and call_messages[0]["role"] == "system":
+            call_messages = list(call_messages)
+            call_messages[0] = {**call_messages[0], "content": call_messages[0]["content"] + " /no_think"}
+        elif cfg.get("no_think"):
+            call_messages = [{"role": "system", "content": "/no_think"}] + list(call_messages)
+
         for attempt in range(1, 3):  # 2 attempts per model
             try:
                 logger.info("LLM call: %s (attempt %d/2)", model_name, attempt)
                 resp = client.chat.completions.create(
                     model=cfg["model"],
-                    messages=messages,
+                    messages=call_messages,
                     max_tokens=max_tokens,
                 )
                 msg = resp.choices[0].message
@@ -264,10 +325,18 @@ def _call_single_model(
     if client is None:
         return "", f"No API key or unknown provider: {provider_key}"
 
+    # Inject /no_think for models that support it (Qwen3)
+    call_messages = messages
+    if cfg.get("no_think") and call_messages and call_messages[0]["role"] == "system":
+        call_messages = list(call_messages)
+        call_messages[0] = {**call_messages[0], "content": call_messages[0]["content"] + " /no_think"}
+    elif cfg.get("no_think"):
+        call_messages = [{"role": "system", "content": "/no_think"}] + list(call_messages)
+
     try:
         resp = client.chat.completions.create(
             model=cfg["model"],
-            messages=messages,
+            messages=call_messages,
             max_tokens=max_tokens,
         )
         msg = resp.choices[0].message
