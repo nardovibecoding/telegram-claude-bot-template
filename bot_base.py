@@ -1272,7 +1272,7 @@ def run_persona(persona_id: str) -> None:
 
     # ── Media group cleanup (periodic, every 5 min) ──────────────────────────
 
-    def _cleanup_media_groups(context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def _cleanup_media_groups(context: ContextTypes.DEFAULT_TYPE) -> None:
         now = _time_mod.time()
         stale = [k for k, ts in _media_group_seen.items() if now - ts > 60]
         for k in stale:
@@ -1769,7 +1769,7 @@ def run_persona(persona_id: str) -> None:
         app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
 
     # Periodic cleanup: purge stale media_group_seen entries
-    app.job_queue.run_repeating(lambda ctx: _cleanup_media_groups(ctx), interval=300, first=300)
+    app.job_queue.run_repeating(_cleanup_media_groups, interval=300, first=300)
 
     logger.info("Starting %s bot (topics: %s)…", display_name, topic_names)
     app.run_polling()

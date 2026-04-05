@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: ask approval for >1 agent, hard block at >3."""
+"""PreToolUse hook: block >1 agent, force Claude to ask user how many."""
 import json
 import sys
 import time
 from pathlib import Path
 
 COUNTER_FILE = Path("/tmp/claude_agent_spawn_counter.json")
-TURN_TIMEOUT = 5  # reset counter after 5s gap (new turn)
-MAX_AGENTS = 3    # hard cap
+TURN_TIMEOUT = 60  # reset counter after 60s gap (new turn)
 
 
 def main():
@@ -38,25 +37,14 @@ def main():
     counter["ts"] = now
     COUNTER_FILE.write_text(json.dumps(counter))
 
-    if counter["count"] > MAX_AGENTS:
-        # Hard block above 3
+    if counter["count"] > 1:
+        # Block and tell Claude to ask how many
         result = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": f"Hard cap: {MAX_AGENTS} agents max. Currently at {counter['count']}.",
-            }
-        }
-        print(json.dumps(result))
-        return
-
-    if counter["count"] > 1:
-        # Ask user for approval for 2nd and 3rd agent
-        result = {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
-                "permissionDecisionReason": f"Spawning agent #{counter['count']} of {MAX_AGENTS} max. Allow?",
+                "permissionDecisionReason": f"BLOCKED: Agent #{counter['count']}. Ask Bernard how many agents he wants first.",
+                "additionalContext": "You tried to spawn more than 1 agent without asking. STOP. Ask Bernard: 'How many agents do you want for this?' Then spawn exactly that many.",
             }
         }
         print(json.dumps(result))
