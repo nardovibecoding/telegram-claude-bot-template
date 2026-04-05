@@ -222,20 +222,20 @@ async def _probe_twitter_cookies() -> ProbeResult:
 
 
 async def _probe_minimax() -> ProbeResult:
-    """Quick health check on MiniMax API."""
+    """Quick health check on LLM API (via llm_client fallback chain)."""
     t0 = time.monotonic()
     try:
-        api_key = os.environ.get("MINIMAX_API_KEY", "")
-        if not api_key:
-            return ProbeResult("MiniMax API", "api", False, 0, "no API key", 0)
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1")
-        resp = client.chat.completions.create(
-            model="MiniMax-M2.5-highspeed",
+        from llm_client import chat_completion
+        result = chat_completion(
             messages=[{"role": "user", "content": "ping"}],
             max_tokens=5,
         )
         ms = int((time.monotonic() - t0) * 1000)
+        if result.startswith("\u26a0\ufe0f"):
+            err = result[2:120].strip()
+            if "insufficient_balance" in err.lower():
+                err = "INSUFFICIENT BALANCE"
+            return ProbeResult("MiniMax API", "api", False, 0, err, ms)
         return ProbeResult("MiniMax API", "api", True, 1, "", ms)
     except Exception as e:
         ms = int((time.monotonic() - t0) * 1000)

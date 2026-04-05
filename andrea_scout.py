@@ -25,11 +25,10 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from openai import OpenAI
 from telegram import Bot
 from telegram.error import TelegramError
 
-from utils import strip_think, PROJECT_DIR
+from utils import PROJECT_DIR
 
 load_dotenv()
 
@@ -38,13 +37,16 @@ logger = logging.getLogger("andrea_scout")
 
 # Optional: multi-model cross-check for top ideas
 try:
-    from llm_client import cross_check
+    from llm_client import chat_completion, cross_check
     HAS_CROSS_CHECK = True
 except ImportError:
+    try:
+        from llm_client import chat_completion
+    except ImportError:
+        chat_completion = None
     HAS_CROSS_CHECK = False
     logger.warning("cross_check not available - Dragons Den evaluation disabled")
 
-MINIMAX_API_KEY = os.environ["MINIMAX_API_KEY"]
 ADMIN_TOKEN = os.environ["TELEGRAM_BOT_TOKEN_ADMIN"]
 
 SEEN_FILE = Path(PROJECT_DIR) / ".andrea_scout_seen.json"
@@ -228,14 +230,9 @@ def fetch_producthunt_signals() -> list[dict]:
 
 def _ai_generate_digest(signals: list[dict]) -> list[dict]:
     """
-    Feed all signals to MiniMax. Ask it to pick 5-7 best opportunities
+    Feed all signals to LLM. Ask it to pick 5-7 best opportunities
     and generate full briefs as structured JSON.
     """
-    client = OpenAI(
-        api_key=MINIMAX_API_KEY,
-        base_url="https://api.minimaxi.com/v1",
-    )
-
     verticals_str = ", ".join(VERTICALS)
 
     signals_text = "\n\n".join(
@@ -287,13 +284,10 @@ Return a JSON array. No other text. Example structure:
 ]"""
 
     try:
-        resp = client.chat.completions.create(
-            model="MiniMax-M2.5-highspeed",
+        raw = chat_completion(
             messages=[{"role": "user", "content": prompt}],
             max_tokens=6000,
-            temperature=0.7,
         )
-        raw = strip_think(resp.choices[0].message.content)
         # Extract JSON array
         match = re.search(r'\[.*\]', raw, re.DOTALL)
         if not match:

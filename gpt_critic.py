@@ -15,7 +15,7 @@ import os
 import time
 from pathlib import Path
 
-from openai import OpenAI
+from llm_client import chat_completion
 
 log = logging.getLogger("gpt_critic")
 
@@ -24,13 +24,6 @@ _RATE_LIMIT_WAIT = 21  # 20s between calls = safe for 3 RPM
 
 # Track last call time for rate limiting
 _last_call_time = 0.0
-
-
-def _get_client() -> OpenAI:
-    key = os.environ.get("CRITIC_API_KEY", "")
-    if not key:
-        raise ValueError("CRITIC_API_KEY not set in .env")
-    return OpenAI(api_key=key)
 
 
 def _rate_limit():
@@ -67,11 +60,11 @@ def _cache_key(prompt: str, model: str) -> str:
 
 def call_gpt(prompt: str, model: str = "gpt-4o", max_tokens: int = 2000,
              system: str = None, use_cache: bool = True) -> str:
-    """Make a single GPT call with rate limiting and caching.
+    """Make an LLM call with rate limiting and caching.
 
     Args:
         prompt: User message
-        model: gpt-4o, gpt-4o-mini, gpt-4.1-nano, etc.
+        model: ignored — llm_client handles model selection
         max_tokens: Max response tokens
         system: Optional system prompt
         use_cache: Whether to cache results (avoid duplicate calls)
@@ -89,19 +82,14 @@ def call_gpt(prompt: str, model: str = "gpt-4o", max_tokens: int = 2000,
 
     _rate_limit()
 
-    client = _get_client()
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    messages = [{"role": "user", "content": prompt}]
 
     try:
-        resp = client.chat.completions.create(
-            model=model,
+        result = chat_completion(
             messages=messages,
             max_tokens=max_tokens,
+            system=system,
         )
-        result = resp.choices[0].message.content.strip()
 
         # Cache the result
         if use_cache:
@@ -114,12 +102,11 @@ def call_gpt(prompt: str, model: str = "gpt-4o", max_tokens: int = 2000,
                     del cache[k]
             _save_cache(cache)
 
-        log.info("GPT call OK: model=%s tokens_in=%d tokens_out=%d",
-                 model, resp.usage.prompt_tokens, resp.usage.completion_tokens)
+        log.info("LLM call OK: max_tokens=%d", max_tokens)
         return result
 
     except Exception as e:
-        log.error("GPT call failed: %s", e)
+        log.error("LLM call failed: %s", e)
         raise
 
 
@@ -169,29 +156,19 @@ def screen_evolution(entries: list[dict]) -> list[dict]:
 
 
 def call_minimax(prompt: str, max_tokens: int = 2000, system: str = None) -> str:
-    """Call MiniMax M2.5 — no rate limit, already paid. Good for bulk work."""
-    api_key = os.environ.get("MINIMAX_API_KEY", "")
-    if not api_key:
-        raise ValueError("MINIMAX_API_KEY not set in .env")
-
-    client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1", timeout=60)
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    """Call LLM via llm_client fallback chain. Good for bulk work."""
+    messages = [{"role": "user", "content": prompt}]
 
     try:
-        resp = client.chat.completions.create(
-            model="MiniMax-M2.5",
+        result = chat_completion(
             messages=messages,
             max_tokens=max_tokens,
+            system=system,
         )
-        result = resp.choices[0].message.content.strip()
-        log.info("MiniMax call OK: tokens_in=%d tokens_out=%d",
-                 resp.usage.prompt_tokens, resp.usage.completion_tokens)
+        log.info("LLM call OK (call_minimax): max_tokens=%d", max_tokens)
         return result
     except Exception as e:
-        log.error("MiniMax call failed: %s", e)
+        log.error("LLM call failed (call_minimax): %s", e)
         raise
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from openai import OpenAI
+from llm_client import chat_completion_async
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,6 @@ async def fetch_tweets(accounts: list[str]) -> list[Tweet]:
 
 # ── AI screening ───────────────────────────────────────────────────────────────
 
-from utils import strip_think as _strip_think
-
 
 def _build_prompt(tweets: list[Tweet], accounts: list[str]) -> str:
     lines = []
@@ -149,22 +147,14 @@ async def generate_twitter_digest(api_key: str, accounts: list[str]) -> list[str
     if not tweets:
         return ["No recent tweets found. Either nothing posted in 24h or the feed is down."]
 
-    client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1")
     prompt = _build_prompt(tweets, accounts)
-    loop   = asyncio.get_event_loop()
 
     try:
-        def _call():
-            resp = client.chat.completions.create(
-                model="MiniMax-M2.5-highspeed",
-                max_tokens=1500,
-                messages=[
-                    {"role": "system", "content": _ELON_SYSTEM},
-                    {"role": "user",   "content": prompt},
-                ],
-            )
-            return _strip_think(resp.choices[0].message.content.strip())
-        result = await loop.run_in_executor(None, _call)
+        result = await chat_completion_async(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1500,
+            system=_ELON_SYSTEM,
+        )
     except Exception as e:
         logger.error("LLM call failed: %s", e)
         return [f"Error generating digest: {e}"]

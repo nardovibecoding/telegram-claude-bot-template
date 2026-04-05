@@ -9,56 +9,16 @@ Usage:
     from multi_model_reviewer import batch_review
     violations = batch_review(responses_list)
 """
-import json
 import logging
-import os
-import time
 from pathlib import Path
 
-from openai import OpenAI
+from llm_client import chat_completion
 
 log = logging.getLogger("reviewer")
 
 PROJECT_DIR = Path(__file__).parent
 ACTIVE_RULES = PROJECT_DIR / "memory" / "active_rules.md"
 SELF_REVIEW = PROJECT_DIR / "memory" / "self_review.md"
-
-# Model configs — all use OpenAI-compatible API
-MODELS = {
-    "minimax": {
-        "key_env": "MINIMAX_API_KEY",
-        "base_url": "https://api.minimaxi.com/v1",
-        "model": "MiniMax-M2.5",
-    },
-    "gpt": {
-        "key_env": "CRITIC_API_KEY",
-        "base_url": None,  # default OpenAI
-        "model": "gpt-4o-mini",
-    },
-    "gemini": {
-        "key_env": "GEMINI_API_KEY",
-        "base_url": (
-            "https://generativelanguage.googleapis.com"
-            "/v1beta/openai/"
-        ),
-        "model": "gemini-2.5-flash",
-    },
-    "groq": {
-        "key_env": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-        "model": "llama-3.3-70b-versatile",
-    },
-    "cerebras": {
-        "key_env": "CEREBRAS_API_KEY",
-        "base_url": "https://api.cerebras.ai/v1",
-        "model": "qwen-3-32b",
-    },
-    "deepseek": {
-        "key_env": "DEEPSEEK_API_KEY",
-        "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
-    },
-}
 
 
 def _load_rules() -> str:
@@ -89,61 +49,30 @@ def _build_prompt(
     )
 
 
-def _call_model(
-    name: str,
-    config: dict,
-    prompt: str,
-) -> str | None:
-    key = os.environ.get(config["key_env"], "")
-    if not key:
-        return None
-
-    try:
-        kwargs = {"api_key": key}
-        if config["base_url"]:
-            kwargs["base_url"] = config["base_url"]
-
-        client = OpenAI(**kwargs, timeout=30)
-        resp = client.chat.completions.create(
-            model=config["model"],
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1000,
-        )
-        result = resp.choices[0].message.content.strip()
-        log.info(
-            "Reviewer %s: %s",
-            name,
-            result[:100],
-        )
-        return result
-    except Exception as e:
-        log.warning("Reviewer %s failed: %s", name, e)
-        return None
-
-
 def batch_review(
     responses: list[str],
 ) -> dict[str, str]:
-    """Review a batch of responses with all models.
+    """Review a batch of responses via llm_client fallback chain.
 
     Args:
         responses: List of assistant response texts
 
     Returns:
-        Dict of model_name -> review result
+        Dict with single key "llm_client" -> review result
     """
     rules = _load_rules()
     prompt = _build_prompt(responses, rules)
     results = {}
 
-    for name, config in MODELS.items():
-        result = _call_model(name, config, prompt)
-        if result:
-            results[name] = result
-            # Rate limit between calls
-            time.sleep(1)
+    try:
+        result = chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
+        )
+        log.info("Reviewer llm_client: %s", result[:100])
+        results["llm_client"] = result
+    except Exception as e:
+        log.warning("Reviewer llm_client failed: %s", e)
 
     return results
 

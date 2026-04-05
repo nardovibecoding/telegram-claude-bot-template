@@ -17,8 +17,6 @@ import logging
 import os
 import re
 
-from openai import OpenAI
-
 from .config import SYSTEM_PROMPTS
 
 log = logging.getLogger("admin")
@@ -213,25 +211,15 @@ MODEL_EMOJI = {
 
 
 async def _minimax_reply(prompt: str, domain: str) -> str:
-    """Quick MiniMax reply for chat-style messages."""
-    api_key = os.environ.get("MINIMAX_API_KEY", "")
-    if not api_key:
-        return ""
+    """Quick chat reply for chat-style messages via LLM fallback chain."""
+    import sys
+    import os as _os
+    sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+    from llm_client import chat_completion_async
 
     sys_prompt = SYSTEM_PROMPTS.get(domain, "You are a helpful assistant.")
-    client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1", timeout=45)
-    loop = asyncio.get_running_loop()
-
-    def _call():
-        resp = client.chat.completions.create(
-            model="MiniMax-M2.5-highspeed",
-            max_tokens=2000,
-            messages=[
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        from utils import strip_think
-        return strip_think(resp.choices[0].message.content.strip())
-
-    return await loop.run_in_executor(None, _call)
+    return await chat_completion_async(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=2000,
+        system=sys_prompt,
+    )

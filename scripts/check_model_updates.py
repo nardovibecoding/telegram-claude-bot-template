@@ -253,27 +253,26 @@ def _notify(text: str, reply_markup: dict | None = None):
 
 def _call_model_direct(provider_key: str, model_name: str, messages: list[dict], timeout: int = 30) -> tuple[str, float]:
     """Call a specific model directly via its API. Returns (response_text, latency_seconds)."""
-    from openai import OpenAI
+    from llm_client import _get_client, _strip_think
 
-    # Determine API config based on provider
-    provider_configs = {
+    # Extra provider configs not in llm_client PROVIDERS (legacy/benchmark-only providers)
+    _extra_configs = {
         "minimax": {"api_key_env": "MINIMAX_API_KEY", "base_url": "https://api.minimaxi.com/v1"},
-        "cerebras": {"api_key_env": "CEREBRAS_API_KEY", "base_url": "https://api.cerebras.ai/v1"},
         "deepseek": {"api_key_env": "DEEPSEEK_API_KEY", "base_url": "https://api.deepseek.com/v1"},
-        "gemini": {"api_key_env": "GEMINI_API_KEY", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
         "groq": {"api_key_env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1"},
-        "kimi": {"api_key_env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1"},
-        "qwen": {"api_key_env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1"},
     }
 
-    config = provider_configs.get(provider_key, {})
-    api_key = os.environ.get(config.get("api_key_env", ""), "")
-    base_url = config.get("base_url", "")
-
-    if not api_key or not base_url:
-        return "(no API key)", 0.0
-
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    # Try llm_client's registry first
+    client, cfg = _get_client(provider_key, timeout)
+    if client is None:
+        # Fall back to extra configs for providers not in llm_client registry
+        extra = _extra_configs.get(provider_key, {})
+        api_key = os.environ.get(extra.get("api_key_env", ""), "")
+        base_url = extra.get("base_url", "")
+        if not api_key or not base_url:
+            return "(no API key)", 0.0
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
 
     start = time.time()
     try:
@@ -285,7 +284,7 @@ def _call_model_direct(provider_key: str, model_name: str, messages: list[dict],
         )
         latency = time.time() - start
         text = resp.choices[0].message.content if resp.choices else "(empty response)"
-        return text or "(empty)", latency
+        return _strip_think(text or "(empty)"), latency
     except Exception as e:
         latency = time.time() - start
         return f"(error: {str(e)[:100]})", latency

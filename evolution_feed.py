@@ -119,32 +119,22 @@ def _classify_category(name: str, description: str, source_url: str) -> str:
     context = f"Name: {name}\nDescription: {description}\nREADME excerpt: {readme[:400]}"
 
     try:
-        minimax_key = os.environ.get("MINIMAX_API_KEY", "")
-        if minimax_key:
-            from openai import OpenAI
-            client = OpenAI(api_key=minimax_key, base_url="https://api.minimaxi.com/v1")
-            cats = ", ".join(VALID_CATEGORIES)
-            resp = client.chat.completions.create(
-                model="MiniMax-M2.5",
-                max_tokens=500,
-                messages=[
-                    {"role": "system", "content": (
-                        f"You are a tool classifier. Given a tool's name, description and README, "
-                        f"respond with EXACTLY ONE word from this list: {cats}. "
-                        f"No explanation, no punctuation, just one category word."
-                    )},
-                    {"role": "user", "content": context},
-                ],
-            )
-            raw = resp.choices[0].message.content or ""
-            # Strip <think>...</think> reasoning blocks (MiniMax-M2.5-highspeed)
-            raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-            result = raw.lower().rstrip(".").strip()
-            if result in VALID_CATEGORIES:
-                return result
-            log.warning("MiniMax returned unknown category '%s', falling back to keywords", result)
+        cats = ", ".join(VALID_CATEGORIES)
+        raw = chat_completion(
+            messages=[{"role": "user", "content": context}],
+            max_tokens=500,
+            system=(
+                f"You are a tool classifier. Given a tool's name, description and README, "
+                f"respond with EXACTLY ONE word from this list: {cats}. "
+                f"No explanation, no punctuation, just one category word."
+            ),
+        )
+        result = raw.lower().rstrip(".").strip()
+        if result in VALID_CATEGORIES:
+            return result
+        log.warning("LLM returned unknown category '%s', falling back to keywords", result)
     except Exception as e:
-        log.warning("MiniMax classify failed: %s", e)
+        log.warning("LLM classify failed: %s", e)
 
     return _keyword_fallback_category(f"{name} {description} {readme}")
 

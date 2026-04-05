@@ -12,15 +12,13 @@ Bookmarks are auto-routed to bot categories:
   - "lists" shares the "en" pool
 """
 
-import asyncio
 import json
 import logging
-import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openai import OpenAI
+from llm_client import chat_completion_async
 
 logger = logging.getLogger(__name__)
 
@@ -240,24 +238,15 @@ async def update_taste_summary(category: str, api_key: str) -> str:
 
     examples = "\n".join(f"- {author}: {text[:300]}" for author, text in rows)
 
-    oai = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1")
-    loop = asyncio.get_event_loop()
-
-    def _call():
-        resp = oai.chat.completions.create(
-            model="MiniMax-M2.5-highspeed",
-            max_tokens=500,
+    try:
+        summary = await chat_completion_async(
             messages=[{"role": "user", "content": f"""Analyze these bookmarked tweets and describe the user's content preferences in 2-3 sentences. Focus on: topics, content style (threads vs short takes), preferred depth level, and any recurring themes.
 
 {examples}
 
 Reply with ONLY the preference description, nothing else."""}],
+            max_tokens=500,
         )
-        raw = resp.choices[0].message.content.strip()
-        return re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-
-    try:
-        summary = await loop.run_in_executor(None, _call)
     except Exception as e:
         logger.error("Taste summary generation failed: %s", e)
         return ""

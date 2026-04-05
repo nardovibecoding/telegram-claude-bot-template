@@ -12,7 +12,6 @@ import subprocess
 import tempfile
 
 from groq import Groq
-from openai import OpenAI
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -101,37 +100,30 @@ def _download_and_transcribe(url: str) -> str | None:
 
 
 def _summarize(transcript: str) -> str:
-    """Summarize transcript via MiniMax M2.5."""
-    api_key = os.environ.get("MINIMAX_API_KEY", "")
-    if not api_key:
-        return "Error: MINIMAX_API_KEY not set"
+    """Summarize transcript via LLM fallback chain."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from llm_client import chat_completion
 
     # Truncate if needed
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         transcript = transcript[:MAX_TRANSCRIPT_CHARS] + "\n\n[... truncated]"
 
-    client = OpenAI(api_key=api_key, base_url="https://api.minimaxi.com/v1", timeout=60)
-    resp = client.chat.completions.create(
-        model="MiniMax-M2.5-highspeed",
-        max_tokens=3000,
+    return chat_completion(
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a concise video summarizer. Given a video transcript, "
-                    "produce a clear summary with: key points, main arguments, and conclusions. "
-                    "Reply in the same language as the transcript. "
-                    "Use bullet points for clarity. Keep it concise but comprehensive."
-                ),
-            },
             {
                 "role": "user",
                 "content": f"Summarize this video transcript:\n\n{transcript}",
             },
         ],
+        max_tokens=3000,
+        system=(
+            "You are a concise video summarizer. Given a video transcript, "
+            "produce a clear summary with: key points, main arguments, and conclusions. "
+            "Reply in the same language as the transcript. "
+            "Use bullet points for clarity. Keep it concise but comprehensive."
+        ),
     )
-    from utils import strip_think
-    return strip_think(resp.choices[0].message.content.strip())
 
 
 @admin_only
