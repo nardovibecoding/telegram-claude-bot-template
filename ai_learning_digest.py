@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from dotenv import load_dotenv
+from content_intelligence import ci
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
@@ -669,6 +670,21 @@ async def main():
         for p in proposals:
             db.append({**p, "proposed_at": today, "status": "proposed"})
         save_evolution_db(db[-200:])
+
+        # Store + mark sent in shared content intelligence DB
+        try:
+            ci.store_stories_batch([
+                {"title": p.get("title", ""), "url": p.get("url", ""),
+                 "source": p.get("source", "evolution"),
+                 "summary": p.get("description", "")}
+                for p in proposals if p.get("title") and p.get("url")
+            ])
+            ci.mark_sent_by_urls(
+                [p["url"] for p in proposals if p.get("url")],
+                "ai_evolution"
+            )
+        except Exception as e:
+            log.warning("content_intelligence failed: %s", e)
 
         # Update cache
         new_urls = [p["url"] for p in proposals if p.get("url")]

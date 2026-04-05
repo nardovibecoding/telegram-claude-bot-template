@@ -31,6 +31,7 @@ load_dotenv(BASE_DIR / ".env")
 from llm_client import chat_completion
 from sanitizer import sanitize_external_content
 from skill_library import add_skill as _add_to_library
+from content_intelligence import ci
 
 log = logging.getLogger("evolution_feed")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -610,6 +611,21 @@ async def main():
                 await asyncio.sleep(0.5)
             except Exception as e:
                 log.warning("Send failed: %s", e)
+
+    # Store + mark sent in shared content intelligence DB
+    try:
+        ci.store_stories_batch([
+            {"title": e["title"], "url": e.get("url", ""),
+             "source": e.get("source", "evolution"),
+             "summary": e.get("description", "")}
+            for e in new_entries if e.get("title") and e.get("url")
+        ])
+        ci.mark_sent_by_urls(
+            [e["url"] for e in new_entries if e.get("url")],
+            "evolution_feed"
+        )
+    except Exception as e:
+        log.warning("content_intelligence failed: %s", e)
 
     with open(SENT_FLAG, "a") as f:
         f.write(today + "\n")

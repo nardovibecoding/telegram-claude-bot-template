@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 
 from llm_client import chat_completion
 from sanitizer import sanitize_external_content, _is_safe_url
+from content_intelligence import ci
 
 logger = logging.getLogger(__name__)
 
@@ -928,6 +929,18 @@ async def generate_full_digest(api_key: str = "") -> list[dict]:
     except Exception as e:
         logger.warning("Gap detection failed: %s", e)
 
+    # 1c. Store all fetched articles in shared content intelligence DB
+    try:
+        all_flat = [
+            {"title": a.title, "url": a.url, "source": a.source,
+             "summary": a.summary}
+            for arts in all_articles.values() for a in arts
+            if a.title and a.url
+        ]
+        ci.store_stories_batch(all_flat)
+    except Exception as e:
+        logger.warning("content_intelligence store failed: %s", e)
+
     # 2. Tag regions on every article
     for source_articles in all_articles.values():
         for article in source_articles:
@@ -996,6 +1009,16 @@ async def generate_full_digest(api_key: str = "") -> list[dict]:
             body = results_map.get((cat, subcat), "")
             if body:
                 all_messages.append(format_subcategory_message(cat, subcat, body))
+
+    # Mark all fetched articles as sent in content intelligence DB
+    try:
+        all_urls = [
+            a.url for arts in all_articles.values() for a in arts
+            if a.url
+        ]
+        ci.mark_sent_by_urls(all_urls, "news")
+    except Exception as e:
+        logger.warning("content_intelligence mark_sent failed: %s", e)
 
     logger.info("Digest complete — %d message chunks ready", len(all_messages))
     return all_messages

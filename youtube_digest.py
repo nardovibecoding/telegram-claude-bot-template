@@ -30,6 +30,7 @@ from digest_feedback import make_key as _dfb_key, vote_buttons as _dfb_buttons
 log = logging.getLogger("youtube_digest")
 
 from llm_client import chat_completion_async
+from content_intelligence import ci
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_ADMIN", "")
@@ -544,6 +545,16 @@ async def main():
                 log.error("Send failed: %s", e)
 
         log.info("Sent %d YouTube summaries", len(results))
+
+    # Mark sent in shared content intelligence DB
+    try:
+        for r in results:
+            url = r.get("url", "")
+            if url:
+                ci.store_story(r.get("title", ""), url, "YouTube")
+                ci.mark_sent_by_urls([url], "youtube")
+    except Exception as e:
+        log.warning("content_intelligence failed: %s", e)
 
     with open(SENT_FLAG, "a") as f:
         f.write(today + "\n")

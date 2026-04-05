@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 load_dotenv(BASE_DIR / ".env")
 
 from digest_feedback import make_key as _dfb_key, vote_buttons as _dfb_buttons
+from content_intelligence import ci
 
 log = logging.getLogger("podcast_digest")
 
@@ -513,6 +514,15 @@ async def main():
                 log.error("Send failed: %s", e)
 
         log.info("Sent %d podcast summaries", len(results))
+
+    # Mark sent in shared content intelligence DB
+    try:
+        for r in results:
+            if r.get("link"):
+                ci.store_story(r["title"], r["link"], f"Podcast/{r.get('podcast', '')}")
+                ci.mark_sent_by_urls([r["link"]], "podcast")
+    except Exception as e:
+        log.warning("content_intelligence failed: %s", e)
 
     if not specific_id:
         with open(sent_flag, "a") as f:

@@ -23,6 +23,7 @@ from sanitizer import sanitize_external_content
 from utils import strip_think
 from digest_feedback import make_key as _dfb_key, vote_buttons as _dfb_buttons
 from llm_client import chat_completion
+from content_intelligence import ci
 
 logger = logging.getLogger(__name__)
 
@@ -489,6 +490,19 @@ def generate_reddit_digest(subreddits: list[str], api_key: str = "", use_cache: 
         posts = ai_curate(posts, api_key)
     else:
         posts = posts[:AI_PICKS]
+    # Store + mark sent in shared content intelligence DB
+    try:
+        ci.store_stories_batch([
+            {"title": p.get("title", ""), "url": p.get("permalink", ""),
+             "source": f"Reddit/{p.get('subreddit', '')}", "score": p.get("score", 0)}
+            for p in posts if p.get("title") and p.get("permalink")
+        ])
+        ci.mark_sent_by_urls(
+            [p["permalink"] for p in posts if p.get("permalink")], "reddit"
+        )
+    except Exception as e:
+        logger.warning("content_intelligence failed: %s", e)
+
     # Build individual cards with vote buttons
     result = []
     for p in posts:

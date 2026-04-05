@@ -26,6 +26,7 @@ from sanitizer import sanitize_external_content
 from utils import strip_think
 from x_feedback import get_preference_prompt
 from bookmark_db import get_taste_prompt
+from content_intelligence import ci
 
 logger = logging.getLogger(__name__)
 
@@ -1058,5 +1059,19 @@ async def generate_daily_digest(api_key: str, lang: str | None = None, list_ids:
             wc = orig.get("words", 0)
             return -wc
     capped.sort(key=_sort_key)
+
+    # Store + mark sent in shared content intelligence DB
+    try:
+        ci.store_stories_batch([
+            {"title": item.get("text", "")[:200], "url": item.get("url", ""),
+             "source": f"X/@{item.get('author', '')}", "score": item.get("likes", 0)}
+            for item in capped if item.get("url")
+        ])
+        ci.mark_sent_by_urls(
+            [item["url"] for item in capped if item.get("url")],
+            f"x_{lang or 'en'}"
+        )
+    except Exception as e:
+        logger.warning("content_intelligence failed: %s", e)
 
     return [build_card(item) for item in capped]

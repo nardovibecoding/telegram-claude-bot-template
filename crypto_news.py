@@ -24,6 +24,7 @@ from openai import OpenAI
 from utils import strip_think
 from llm_client import chat_completion
 from digest_feedback import make_key as _dfb_key, vote_buttons as _dfb_buttons
+from content_intelligence import ci
 
 logger = logging.getLogger(__name__)
 
@@ -385,6 +386,16 @@ async def generate_crypto_digest(api_key: str) -> list[dict]:
         len(all_articles_raw), len(main_articles),
     )
 
+    # Store in shared content intelligence DB
+    try:
+        ci.store_stories_batch([
+            {"title": a.title, "url": a.url, "source": a.source,
+             "summary": a.summary}
+            for a in main_articles if a.title and a.url
+        ])
+    except Exception as e:
+        logger.warning("content_intelligence store failed: %s", e)
+
     # Gap detection — find crypto stories our RSS feeds missed
     try:
         from gap_detector import detect_gaps
@@ -505,6 +516,14 @@ async def generate_crypto_digest(api_key: str) -> list[dict]:
         key = _dfb_key("crypto_deals_" + today)
         msg["reply_markup"] = _dfb_buttons("crypto", key)
         messages.append(msg)
+
+    # Mark sent in shared content intelligence DB
+    try:
+        sent_urls = [a.url for a in main_articles if a.url]
+        sent_urls += [a.url for a in protos_articles if a.url]
+        ci.mark_sent_by_urls(sent_urls, "crypto")
+    except Exception as e:
+        logger.warning("content_intelligence mark_sent failed: %s", e)
 
     logger.info("Crypto digest complete.")
     return messages

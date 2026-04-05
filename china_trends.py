@@ -22,6 +22,7 @@ from sanitizer import sanitize_external_content, _is_safe_url
 from utils import strip_think
 from llm_client import chat_completion
 from digest_feedback import make_key as _dfb_key, vote_buttons as _dfb_buttons
+from content_intelligence import ci
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
@@ -687,6 +688,20 @@ async def main():
     cache["seen"] = (existing + new_entries)[-300:]
     cache["last_run"] = today
     save_cache(cache)
+
+    # Store + mark sent in shared content intelligence DB
+    try:
+        all_items = headlines + deep
+        ci.store_stories_batch([
+            {"title": i["title"], "url": i.get("url", ""),
+             "source": f"CN/{i.get('source', '')}", "summary": i.get("summary", "")}
+            for i in all_items if i.get("title") and i.get("url")
+        ])
+        ci.mark_sent_by_urls(
+            [i["url"] for i in all_items if i.get("url")], "china_trends"
+        )
+    except Exception as e:
+        log.warning("content_intelligence failed: %s", e)
 
     with open(SENT_FLAG, "a") as f:
         f.write(today + "\n")
