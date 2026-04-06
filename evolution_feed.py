@@ -256,9 +256,11 @@ def _context_filter(entries: list[dict]) -> list[dict]:
 
         kept = []
         skipped = []
+        seen_indices = set()
         for v in verdicts:
             idx = v.get("index", -1)
             if 0 <= idx < len(entries):
+                seen_indices.add(idx)
                 if v.get("verdict") == "keep":
                     kept.append(entries[idx])
                 else:
@@ -266,6 +268,13 @@ def _context_filter(entries: list[dict]) -> list[dict]:
                         f"  {entries[idx].get('title', '?')}: "
                         f"{v.get('reason', '?')}"
                     )
+
+        # Keep any entries the LLM didn't mention (safe default)
+        for i, entry in enumerate(entries):
+            if i not in seen_indices:
+                kept.append(entry)
+                log.info("Context filter: LLM missed index %d, keeping: %s",
+                         i, entry.get("title", "?")[:60])
 
         if skipped:
             log.info(
