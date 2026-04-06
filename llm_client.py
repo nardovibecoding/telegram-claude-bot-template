@@ -3,13 +3,14 @@
 Shared LLM client with automatic fallback chain and parallel cross-check.
 
 Fallback order (chat_completion):
-  1. Kimi-for-Coding         (primary — best quality)
-  2. Qwen3-32b via Groq      (fast fallback)
-  3. Cerebras Qwen3-235b     (fastest inference)
-  4. Gemini 2.5 Flash         (free tier fallback)
+  1. MiniMax M2.5             (primary — best Chinese, no crypto censorship)
+  2. Kimi-for-Coding          (fallback — over limit until ~2026-04-09)
+  3. Qwen3-32b via Groq       (fast fallback)
+  4. Cerebras Qwen3-235b      (fastest inference)
+  5. Gemini 2.5 Flash          (free tier fallback)
 
 Parallel cross-check (chat_completion_multi / cross_check):
-  All 4 providers in parallel: Cerebras, Gemini, Kimi, Qwen3
+  All 5 providers in parallel: MiniMax, Cerebras, Gemini, Kimi, Qwen3
 
 Usage:
     from llm_client import chat_completion, chat_completion_multi, cross_check
@@ -42,6 +43,12 @@ logger = logging.getLogger(__name__)
 # ── Provider registry ────────────────────────────────────────────────────────
 
 PROVIDERS = {
+    "minimax": {
+        "name": "MiniMax-M2.5",
+        "api_key_env": "MINIMAX_API_KEY",
+        "base_url": "https://api.minimax.chat/v1",
+        "model": "MiniMax-M2.5",
+    },
     "cerebras": {
         "name": "Cerebras-Qwen3-235b",
         "api_key_env": "CEREBRAS_API_KEY",
@@ -71,7 +78,7 @@ PROVIDERS = {
 }
 
 # Fallback chain order for chat_completion (single-model path)
-_FALLBACK_CHAIN = ["kimi", "qwen", "cerebras", "gemini"]
+_FALLBACK_CHAIN = ["minimax", "kimi", "qwen", "cerebras", "gemini"]
 
 # Errors that trigger immediate fallback (no retry on same model)
 _FATAL_PATTERNS = [
@@ -214,7 +221,7 @@ def chat_completion(
     """
     Call LLM with automatic fallback chain.
 
-    Chain: Kimi -> Qwen -> Cerebras -> Gemini
+    Chain: MiniMax -> Kimi -> Qwen -> Cerebras -> Gemini
 
     Parameters
     ----------
@@ -445,7 +452,7 @@ async def cross_check(
     timeout: int = 30,
     system: str | None = None,
     models: list[str] | None = None,
-    judge_model: str = "kimi",
+    judge_model: str = "minimax",
     judge_prompt: str | None = None,
 ) -> dict:
     """
@@ -458,7 +465,7 @@ async def cross_check(
     timeout : per-model timeout in seconds
     system : optional system message
     models : subset of provider keys (default: all 6)
-    judge_model : provider key for synthesis (default: kimi)
+    judge_model : provider key for synthesis (default: minimax)
     judge_prompt : custom judge prompt (use {n} and {responses} placeholders)
 
     Returns
