@@ -420,19 +420,21 @@ def run_persona(persona_id: str) -> None:
         mk  = _mem_key(chat_id, thread_id)
         ck  = _conv_key(chat_id, thread_id)
 
-        conv = convs[ck]
-        conv.append({"role": "user", "content": text})
-        if len(conv) > MAX_HISTORY:
-            # Absorb messages about to be lost into rolling summary
-            truncated = conv[:-MAX_HISTORY]
-            compressor.absorb_truncated(ck, truncated)
-            convs[ck] = conv[-MAX_HISTORY:]
-
         user_id = update.effective_user.id if update.effective_user else 0
         log_message(persona_id, user_id, "user", text, "text")
 
         try:
             await update.effective_chat.send_action("typing")
+
+            # Truncate old messages BEFORE appending the new user turn
+            conv = convs[ck]
+            if len(conv) >= MAX_HISTORY:
+                truncated = conv[:-MAX_HISTORY]
+                compressor.absorb_truncated(ck, truncated)
+                convs[ck] = conv[-MAX_HISTORY:]
+
+            # Append user message to the (possibly rebound) active list
+            convs[ck].append({"role": "user", "content": text})
 
             past = mem.retrieve(mk, text)
             memory_block = format_memory_block(past)
@@ -465,7 +467,9 @@ def run_persona(persona_id: str) -> None:
 
         except Exception as e:
             logger.error("Respond error: %s", e)
-            convs[ck].pop()
+            # Remove the user message we just appended — no ghost entries
+            if convs[ck] and convs[ck][-1].get("role") == "user":
+                convs[ck].pop()
             await update.message.reply_text("⚠️ Something went wrong. Check logs.")
 
     # ── Claude Code fallback (for tasks needing tools) ─────────────────────
@@ -1141,6 +1145,16 @@ def run_persona(persona_id: str) -> None:
 
         # Security: user whitelist (private chats only)
         if not _check_private_user(update):
+            return
+
+        # Security: per-user rate limiting
+        voice_user_id = update.effective_user.id if update.effective_user else 0
+        if not _check_rate_limit(voice_user_id):
+            now = _time_mod.time()
+            last_notified = _rate_limit_notified.get(voice_user_id, 0)
+            if now - last_notified > _RATE_LIMIT_WINDOW:
+                _rate_limit_notified[voice_user_id] = now
+                await update.message.reply_text("Rate limit reached. Please wait.")
             return
 
         await update.effective_chat.send_action("typing")

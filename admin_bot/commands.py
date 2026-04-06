@@ -2314,9 +2314,9 @@ async def cmd_eli5(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     resp = await http.get(url, headers={"User-Agent": "Mozilla/5.0"})
                     if resp.status_code == 200:
                         html = resp.text[:20000]
-                        html = re.sub(r"<(script|style)[^>]*>.*?</\\1>", "", html, flags=re.DOTALL)
+                        html = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL)
                         html = re.sub(r"<[^>]+>", " ", html)
-                        html = re.sub(r"\\s+", " ", html).strip()
+                        html = re.sub(r"\s+", " ", html).strip()
                         if len(html) > 200:
                             article_context += f"\n\n--- Article from {url} ---\n{html[:5000]}"
         except Exception:
