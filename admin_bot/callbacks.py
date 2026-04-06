@@ -88,6 +88,9 @@ async def handle_switch(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # callback_data format: switch:{key}:{model}
     parts = query.data.split(":")
+    if len(parts) < 3:
+        await query.answer("Invalid switch data")
+        return
     key = parts[1]
 
     # Reject stale buttons from old tasks
@@ -169,10 +172,12 @@ async def handle_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_commit_deploy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle commit & deploy button press."""
     query = update.callback_query
-    await query.answer()
 
     if query.from_user.id != ADMIN_USER_ID:
+        await query.answer("Not authorized")
         return
+
+    await query.answer()
 
     if query.data == "commit_skip":
         await query.edit_message_text("⬜ Skipped.")

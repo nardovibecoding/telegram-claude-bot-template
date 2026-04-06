@@ -315,10 +315,10 @@ async def _daily_review(context: ContextTypes.DEFAULT_TYPE):
     # Keeping the function but it's never scheduled via job_queue
 
     except asyncio.TimeoutError:
-        log.warning("Daily review timed out (300s)")
+        log.warning("Daily review timed out (900s)")
         await context.bot.send_message(
             chat_id=ADMIN_USER_ID,
-            text="⚠️ Daily review timed out (300s)",
+            text="⚠️ Daily review timed out (900s)",
         )
     except Exception as e:
         log.error("Daily review failed: %s", e)
@@ -432,7 +432,11 @@ async def _daily_gmail_check(context: ContextTypes.DEFAULT_TYPE):
             proc.kill()
             await proc.wait()
             log.warning("_daily_gmail_check: proc timed out/cancelled")
-            raise
+            await context.bot.send_message(
+                chat_id=ADMIN_USER_ID,
+                text="📧 Gmail check timed out (300s)",
+            )
+            return
         await proc.wait()
 
         if result:

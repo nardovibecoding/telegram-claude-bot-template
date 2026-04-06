@@ -553,11 +553,12 @@ async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not os.path.exists(python):
             python = "python3"
         cmd = [python] + info["cmd"][1:]
-        await asyncio.create_subprocess_exec(
+        proc = await asyncio.create_subprocess_exec(
             *cmd, cwd=PROJECT_DIR,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
+        asyncio.create_task(proc.wait())  # reap zombie
         await update.message.reply_text(f"🔄 Re-running {job}...")
         return
 
@@ -1009,12 +1010,13 @@ async def cmd_rerun(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cmd = [python] + info["cmd"][1:]  # replace "python" with actual path
 
     # Run in background
-    await asyncio.create_subprocess_exec(
+    proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=PROJECT_DIR,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
+    asyncio.create_task(proc.wait())  # reap zombie
 
     await update.message.reply_text(f"🔄 Re-running {job}...")
 

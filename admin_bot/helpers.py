@@ -166,9 +166,20 @@ async def _send_msg(bot, chat_id, text, thread_id=None):
 
 def _save_inflight(chat_id, msg_id, key):
     try:
-        data = {"chat_id": chat_id, "msg_id": msg_id, "key": key, "ts": time.time()}
+        entry = {"chat_id": chat_id, "msg_id": msg_id, "key": key, "ts": time.time()}
+        # Append to list of inflight requests (supports multiple concurrent)
+        existing = []
+        if os.path.exists(_INFLIGHT_FILE):
+            try:
+                with open(_INFLIGHT_FILE) as f:
+                    existing = json.load(f)
+                if isinstance(existing, dict):
+                    existing = [existing]  # migrate single-object format
+            except Exception:
+                existing = []
+        existing.append(entry)
         with open(_INFLIGHT_FILE, "w") as f:
-            json.dump(data, f)
+            json.dump(existing, f)
     except Exception:
         pass
 
@@ -195,15 +206,21 @@ async def _recover_inflight(app):
     try:
         if os.path.exists(_INFLIGHT_FILE):
             with open(_INFLIGHT_FILE) as f:
-                data = json.load(f)
-            await app.bot.edit_message_text(
-                chat_id=data["chat_id"],
-                message_id=data["msg_id"],
-                text="🔄 Bot restarted — please resend your message.",
-            )
+                entries = json.load(f)
+            if isinstance(entries, dict):
+                entries = [entries]  # migrate single-object format
+            for data in entries:
+                try:
+                    await app.bot.edit_message_text(
+                        chat_id=data["chat_id"],
+                        message_id=data["msg_id"],
+                        text="🔄 Bot restarted — please resend your message.",
+                    )
+                    import logging
+                    logging.getLogger("admin").info("Recovered stale inflight request for [%s]", data.get("key"))
+                except Exception:
+                    pass
             _clear_inflight()
-            import logging
-            logging.getLogger("admin").info("Recovered stale inflight request for [%s]", data.get("key"))
     except Exception as e:
         import logging
         logging.getLogger("admin").warning("Inflight recovery failed: %s", e)

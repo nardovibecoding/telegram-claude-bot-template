@@ -214,7 +214,7 @@ def chat_completion(
     """
     Call LLM with automatic fallback chain.
 
-    Chain: Qwen -> Kimi -> Cerebras -> Gemini
+    Chain: Kimi -> Qwen -> Cerebras -> Gemini
 
     Parameters
     ----------
@@ -305,7 +305,7 @@ async def chat_completion_async(
     system: str | None = None,
 ) -> str:
     """Async version -- runs chat_completion in executor to avoid blocking."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         None, lambda: chat_completion(messages, max_tokens, timeout, system)
     )
@@ -419,7 +419,7 @@ async def chat_completion_multi(
                 errors[key] = err
 
     result["errors"] = errors
-    successful = len(target_models) - len(errors)
+    successful = sum(1 for k in result if k != "errors" and result[k])
     logger.info("Multi-LLM complete: %d/%d succeeded", successful, len(target_models))
     return result
 
@@ -458,7 +458,7 @@ async def cross_check(
     timeout : per-model timeout in seconds
     system : optional system message
     models : subset of provider keys (default: all 6)
-    judge_model : provider key for synthesis (default: minimax)
+    judge_model : provider key for synthesis (default: kimi)
     judge_prompt : custom judge prompt (use {n} and {responses} placeholders)
 
     Returns

@@ -268,7 +268,9 @@ def _load_cache() -> dict:
 
 
 def _save_cache(cache: dict) -> None:
-    TOPIC_CACHE.write_text(json.dumps(cache, indent=2, ensure_ascii=False))
+    tmp = TOPIC_CACHE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache, indent=2, ensure_ascii=False))
+    tmp.replace(TOPIC_CACHE)
 
 
 # ── Main runner ───────────────────────────────────────────────────────────────
@@ -487,6 +489,7 @@ def run_persona(persona_id: str) -> None:
     # ── Text chunk merging (0.6s debounce) ────────────────────────────────────
     _text_buffer: dict[tuple, list[str]] = defaultdict(list)
     _text_buffer_tasks: dict[tuple, asyncio.Task] = {}
+    _album_notify_tasks: dict[str, asyncio.Task] = {}  # album debounce (separate from text)
     _text_buffer_updates: dict[tuple, Update] = {}  # keep latest update for flush
     _text_buffer_contexts: dict[tuple, ContextTypes.DEFAULT_TYPE] = {}
     TEXT_MERGE_DELAY = 0.6
@@ -598,7 +601,7 @@ def run_persona(persona_id: str) -> None:
                     if not raw:
                         err = stderr.decode().strip()
                         # #3: Session expired — retry without resume
-                        if session_id and ("session" in err.lower() or "resume" in err.lower() or proc.returncode != 0):
+                        if session_id and ("session" in err.lower() or "resume" in err.lower()):
                             logger.warning("Claude session expired for %s, starting fresh", session_key)
                             sessions.pop(session_key, None)
                             _save_bot_sessions(sessions)
@@ -648,12 +651,14 @@ def run_persona(persona_id: str) -> None:
             except Exception:
                 pass
 
-            # Store in conversation + memory
+            # Store in conversation + memory (skip error placeholders)
             mk = _mem_key(chat_id, thread_id)
+            is_error = result.startswith("⚠️") or result.startswith("❌")
             convs[ck].append({"role": "user", "content": text})
-            convs[ck].append({"role": "assistant", "content": result})
-            mem.store(mk, "user", text)
-            mem.store(mk, "assistant", result)
+            if not is_error:
+                convs[ck].append({"role": "assistant", "content": result})
+                mem.store(mk, "user", text)
+                mem.store(mk, "assistant", result)
             _user_id = update.effective_user.id if update.effective_user else 0
             log_message(persona_id, _user_id, "user", text, "text")
             log_message(persona_id, _user_id, "assistant", result, "text", model="claude-opus")
@@ -936,6 +941,8 @@ def run_persona(persona_id: str) -> None:
         thread_id = update.message.message_thread_id if update.message else None
         if chat_type != "private" and not _is_my_thread(chat_type, chat_id, thread_id):
             return
+        if not _check_private_user(update):
+            return
         subs = _load_subs()
         if chat_id not in subs:
             await update.message.reply_text(_r("unsubscribe_not"))
@@ -958,18 +965,15 @@ def run_persona(persona_id: str) -> None:
                 messages = await generate_crypto_digest("")
             else:
                 messages = await generate_full_digest("")
-            plain_texts: list[str] = []
             for msg in messages:
                 if isinstance(msg, dict):
                     text   = msg["text"]
                     pm     = msg.get("parse_mode")
                     markup = msg.get("reply_markup")
-                    plain_texts.append(text)
                 else:
                     text   = msg
                     pm     = "HTML"
                     markup = None
-                    plain_texts.append(text)
                 await context.bot.send_message(chat_id=chat_id, text=text,
                                                message_thread_id=thread_id,
                                                parse_mode=pm,
@@ -1164,9 +1168,11 @@ def run_persona(persona_id: str) -> None:
                 tmp_path = tmp.name
                 await file.download_to_drive(tmp_path)
 
-            segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language=whisper_lang)
-            transcript = "".join(seg.text for seg in segments).strip()
-            os.unlink(tmp_path)
+            try:
+                segments, info = whisper_model.transcribe(tmp_path, beam_size=5, language=whisper_lang)
+                transcript = "".join(seg.text for seg in segments).strip()
+            finally:
+                os.unlink(tmp_path)
 
             if not transcript:
                 await update.message.reply_text(_r("voice_no_audio"))
@@ -1208,12 +1214,9 @@ def run_persona(persona_id: str) -> None:
 
         ck = _conv_key(chat_id, thread_id)
 
-        # Album dedup: skip if we already processed this media_group_id
+        # Track album media groups
         mg_id = update.message.media_group_id
         if mg_id:
-            if mg_id in _media_group_seen:
-                # Still add the photo to the queue (album has multiple photos)
-                pass
             _media_group_seen[mg_id] = _time_mod.time()
 
         # Get largest photo size
@@ -1233,7 +1236,7 @@ def run_persona(persona_id: str) -> None:
         if mg_id:
             # Cancel existing album notify task if any
             task_key = f"album_{ck}"
-            existing = _text_buffer_tasks.get(task_key)
+            existing = _album_notify_tasks.get(task_key)
             if existing and not existing.done():
                 existing.cancel()
 
@@ -1244,7 +1247,7 @@ def run_persona(persona_id: str) -> None:
                     await update.message.reply_text(
                         f"Got it ({n} photo{'s' if n > 1 else ''} queued). Send more or tell me what to do with them."
                     )
-            _text_buffer_tasks[task_key] = asyncio.ensure_future(_notify_album())
+            _album_notify_tasks[task_key] = asyncio.ensure_future(_notify_album())
         else:
             await update.message.reply_text(
                 f"Got it ({count} photo{'s' if count > 1 else ''} queued). Send more or tell me what to do with them."
@@ -1385,7 +1388,7 @@ def run_persona(persona_id: str) -> None:
                     try:
                         await context.bot.send_message(
                             chat_id=chat_id, message_thread_id=thread_id,
-                            text=f"✅ <b>{display_name}</b> — MiniMax API recovered.",
+                            text=f"✅ <b>{display_name}</b> — LLM API recovered.",
                             parse_mode="HTML",
                         )
                     except Exception:
@@ -1398,7 +1401,7 @@ def run_persona(persona_id: str) -> None:
                     try:
                         await context.bot.send_message(
                             chat_id=chat_id, message_thread_id=thread_id,
-                            text=f"⚠️ <b>{display_name}</b> — MiniMax API unreachable\n<code>{type(e).__name__}: {e}</code>",
+                            text=f"⚠️ <b>{display_name}</b> — LLM API unreachable\n<code>{type(e).__name__}: {e}</code>",
                             parse_mode="HTML",
                         )
                     except Exception:

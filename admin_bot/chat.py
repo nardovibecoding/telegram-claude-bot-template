@@ -31,7 +31,7 @@ _OPUS_KW = [
     ("build a", 3), ("create file", 3), ("new module", 3), ("new script", 3),
     ("add feature", 2), ("add a ", 1),
     ("fix bug", 3), ("fix the", 3), ("fix this", 3), ("fix it", 2),
-    ("fix code", 3), ("fix any", 2), ("fix ", 1),
+    ("fix code", 3), ("fix any", 2), ("fix", 1),
     ("deploy", 2), ("migrate", 2), ("redesign", 3), ("restructure", 3),
     ("commit", 2), ("push to", 2), ("set up", 2), ("install", 2),
     ("configure", 2), ("cron", 2), ("hook", 2), ("schedule", 1),
@@ -153,18 +153,18 @@ def pick_model(text: str, context_msgs: list[str] | None = None, thread_key: str
     best = max(s_opus, s_sonnet, s_haiku)
 
     if best == 0:
-        # No keywords in current msg OR context — use sticky session
-        if is_greeting and not context_msgs:
-            return "minimax"
+        # No keywords — use sticky session or cheap default
         if thread_key and thread_key in _last_model:
             sticky = _last_model[thread_key]
             log.info("router: sticky %s (no keywords, using last model) for: %.60s", sticky, text)
             return sticky
+        if is_greeting:
+            return "haiku"
         if _has_chinese(low):
             return "opus"
         if len(low) > 200:
             return "opus"
-        return "opus"
+        return "sonnet"
 
     # Winner takes all. On tie: prefer cheaper model
     if best == s_haiku and s_haiku >= s_sonnet and s_haiku >= s_opus:

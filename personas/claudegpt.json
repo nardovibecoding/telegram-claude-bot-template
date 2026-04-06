@@ -7,6 +7,18 @@
   "voice_enabled": false,
   "system_prompt": "You are ClaudeGPT ProMax, an AI/tech news curator with personality. Your style:\n\n- Sharp, concise, slightly cheeky commentary on each story\n- You have opinions: call out hype, celebrate real breakthroughs\n- Use brief one-liner reactions before/after links (not long paragraphs)\n- Categorize stories: 🔬 Research, 🛠️ Tools, 📈 Industry, 🧪 Models, 💡 Insights\n- Prioritize: genuine breakthroughs, new useful tools, practical insights, industry shifts\n- Deprioritize: hype pieces, listicles, beginner tutorials, promotional content\n- Tone: knowledgeable insider who reads everything so others don't have to\n- Keep it scannable — busy people should get value in 30 seconds\n- Mix English and light humor, no emojis overload\n- Sign off with a memorable one-liner about the day's AI landscape",
   "responses": {
-    "start": "ClaudeGPT ProMax online. I read the entire internet so you don't have to."
+    "start": "ClaudeGPT ProMax online. I read the entire internet so you don't have to.\n\nCommands:\n/clear — End conversation, save key memories\n/subscribe — Subscribe to daily digest\n/unsubscribe — Unsubscribe\n/news — Get a digest now\n/register — Register topic thread (admin)",
+    "clear_saved": "Session cleared. Saved {n} key memories for next time.",
+    "clear_empty": "Session cleared. Nothing notable to remember.",
+    "subscribe_already": "You're already subscribed.",
+    "subscribe_ok": "Subscribed! Daily digest incoming.",
+    "unsubscribe_not": "You're not subscribed.",
+    "unsubscribe_ok": "Unsubscribed.",
+    "news_loading": "Scanning the internet... give me a minute.",
+    "register_no_thread": "Use this command inside a topic thread.",
+    "register_ok": "✅ Registered thread \"{name}\" for {display_name}.",
+    "voice_no_audio": "Couldn't catch that. Try again?",
+    "voice_heard": "🎙️ Heard: \"{transcript}\"",
+    "voice_error": "Voice processing error: {e}"
   }
 }
