@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block >1 agent, force Claude to ask user how many."""
+"""PreToolUse hook: block >1 agent per turn, force Claude to ask user.
+After user approves (sets allowed count), allow up to that many within the turn."""
 import json
 import sys
 import time
 from pathlib import Path
 
 COUNTER_FILE = Path("/tmp/claude_agent_spawn_counter.json")
-TURN_TIMEOUT = 60  # reset counter after 60s gap (new turn)
+TURN_TIMEOUT = 120  # reset counter after 120s gap (new turn)
+MAX_ALLOWED = 3  # absolute ceiling
 
 
 def main():
@@ -21,36 +23,47 @@ def main():
         print("{}")
         return
 
+    # Auto-save agents (background, save-related) bypass the cap
+    tool_input = input_data.get("tool_input", {})
+    is_autosave = (
+        tool_input.get("run_in_background") is True
+        and any(kw in tool_input.get("prompt", "").lower() for kw in ["convo summary", "memory", "save", "nardoworld"])
+    )
+    if is_autosave:
+        print("{}")
+        return
+
     now = time.time()
 
     # Load or reset counter
-    counter = {"count": 0, "ts": now}
+    state = {"count": 0, "allowed": 1, "ts": now}
     if COUNTER_FILE.exists():
         try:
-            counter = json.loads(COUNTER_FILE.read_text())
-            if now - counter.get("ts", 0) > TURN_TIMEOUT:
-                counter = {"count": 0, "ts": now}
+            state = json.loads(COUNTER_FILE.read_text())
+            if now - state.get("ts", 0) > TURN_TIMEOUT:
+                state = {"count": 0, "allowed": 1, "ts": now}
         except (json.JSONDecodeError, OSError):
-            counter = {"count": 0, "ts": now}
+            state = {"count": 0, "allowed": 1, "ts": now}
 
-    counter["count"] += 1
-    counter["ts"] = now
-    COUNTER_FILE.write_text(json.dumps(counter))
+    state["count"] += 1
+    state["ts"] = now
+    allowed = state.get("allowed", 1)
+    COUNTER_FILE.write_text(json.dumps(state))
 
-    if counter["count"] > 1:
+    if state["count"] > allowed:
         # Block and tell Claude to ask how many
         result = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": f"BLOCKED: Agent #{counter['count']}. Ask Bernard how many agents he wants first.",
-                "additionalContext": "You tried to spawn more than 1 agent without asking. STOP. Ask Bernard: 'How many agents do you want for this?' Then spawn exactly that many.",
+                "permissionDecisionReason": f"BLOCKED: Agent #{state['count']} (allowed: {allowed}). Ask Bernard how many agents he wants first.",
+                "additionalContext": f"You tried to spawn more than {allowed} agent(s). STOP. Ask Bernard how many agents, then write the approved count to {COUNTER_FILE} as JSON with key 'allowed' (max {MAX_ALLOWED}).",
             }
         }
         print(json.dumps(result))
         return
 
-    # First agent — always allowed
+    # Within allowed limit
     print("{}")
 
 

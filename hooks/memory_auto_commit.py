@@ -19,7 +19,7 @@ MEMORY_DST = BOT_REPO / "memory"
 
 
 def run(cmd, **kwargs):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=5, **kwargs)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=15, **kwargs)
 
 
 def main():
